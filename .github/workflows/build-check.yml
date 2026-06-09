@@ -1,0 +1,30 @@
+# Compile check for provider fixes on a branch. Local builds can't fetch the
+# private terraform-sdk-samsungcloudplatformv2; CI uses GH_ACCESS_TOKEN to clone it.
+name: build-check
+on:
+  push:
+    branches:
+      - 'claude/**'
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      GOPRIVATE: github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2
+      GH_ACCESS_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+      - name: Config Access Token
+        run: git config --global url.https://$GH_ACCESS_TOKEN@github.com/.insteadOf https://github.com/
+      - name: go build
+        run: go build ./...
+      - name: gofmt (changed-area only, non-blocking)
+        run: gofmt -l samsungcloudplatform/service/loadbalancer || true
+      - name: go vet (non-blocking)
+        run: go vet ./... || true
