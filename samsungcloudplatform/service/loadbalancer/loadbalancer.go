@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"strings"
 	"time"
 )
 
@@ -330,6 +331,18 @@ func (r *loadbalancerLoadbalancerResource) Delete(ctx context.Context, req resou
 		resp.Diagnostics.AddError(
 			"Error Deleting Loadbalancer",
 			"Could not delete loadbalancer, unexpected error: "+err.Error()+"\nReason: "+detail,
+		)
+		return
+	}
+
+	// #77: the delete is asynchronous; wait until the LB is fully gone (Get -> 404)
+	// so that a dependent subnet/VPC delete in the same `terraform destroy` does not
+	// fail with 409 "Cannot terminate due to associated resources".
+	err = waitForLoadbalancerStatus(ctx, r.client, state.Id.ValueString(), []string{}, []string{"DELETED"})
+	if err != nil && !strings.Contains(err.Error(), "404") && !strings.Contains(err.Error(), "not found") {
+		resp.Diagnostics.AddError(
+			"Error Deleting Loadbalancer",
+			"Error waiting for loadbalancer to be deleted: "+err.Error(),
 		)
 		return
 	}
