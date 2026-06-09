@@ -184,7 +184,12 @@ func (r *vpcTgwResource) Create(ctx context.Context, req resource.CreateRequest,
 	plan.Id = types.StringValue(tgw.Id)
 	diags = resp.State.Set(ctx, plan)
 
-	err = waitForTgwtStatus(ctx, r.client, tgw.Id, []string{}, []string{"ACTIVE"})
+	// Pending must list every transitional state so that a parked/terminal state
+	// (e.g. ERROR) is treated as an "unexpected state" by StateChangeConf and the
+	// waiter fails fast instead of spinning for the full timeout (issue #76).
+	err = waitForTgwtStatus(ctx, r.client, tgw.Id,
+		[]string{common.CreatingState, common.EditingState},
+		[]string{common.ActiveState})
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating tgw",
@@ -307,7 +312,10 @@ func (r *vpcTgwResource) Delete(ctx context.Context, req resource.DeleteRequest,
 		return
 	}
 
-	err = waitForTgwtStatus(ctx, r.client, state.Id.ValueString(), []string{}, []string{"DELETED"})
+	// Treat DELETING/EDITING as transitional; ERROR (or any other state) short-circuits.
+	err = waitForTgwtStatus(ctx, r.client, state.Id.ValueString(),
+		[]string{common.DeletingState, common.EditingState, common.ActiveState},
+		[]string{common.DeletedState})
 	if err != nil && !strings.Contains(err.Error(), "404") {
 		resp.Diagnostics.AddError(
 			"Error deleting TgwResource",

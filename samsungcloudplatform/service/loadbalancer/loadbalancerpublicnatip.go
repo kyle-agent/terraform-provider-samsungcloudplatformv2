@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"strings"
 	"time"
 )
 
@@ -231,8 +232,10 @@ func (r *loadbalancerLoadbalancerPublicNatIpResource) Delete(ctx context.Context
 		return
 	}
 
-	// Delete existing LB Static NAT
-	err := r.client.DeleteLoadbalancerPublicNatIp(ctx, state.LoadbalancerId.ValueString())
+	loadbalancerId := state.LoadbalancerId.ValueString()
+
+	// Delete (detach) the public NAT from the load balancer.
+	err := r.client.DeleteLoadbalancerPublicNatIp(ctx, loadbalancerId)
 	if err != nil {
 		detail := client.GetDetailFromError(err)
 		resp.Diagnostics.AddError(
@@ -241,6 +244,37 @@ func (r *loadbalancerLoadbalancerPublicNatIpResource) Delete(ctx context.Context
 		)
 		return
 	}
+
+	// The detach is asynchronous. If we return immediately, the public IP is still
+	// ATTACHED and a later publicip/LB delete in the same `terraform destroy` fails
+	// with 409 ("PublicIP state is not deletable (ATTACHED)" /
+	// "Cannot delete the loadbalancer due to associated resources"). Wait until the
+	// NAT is fully removed: poll Show until it 404s (gone) so the publicip becomes
+	// deletable and the LB no longer has an associated NAT.
+	err = waitForPublicNatIpRemoved(ctx, r.client, loadbalancerId)
+	if err != nil && !strings.Contains(err.Error(), "404") && !strings.Contains(err.Error(), "not found") {
+		resp.Diagnostics.AddError(
+			"Error Deleting LB Public NAT",
+			"Error waiting for LB Public NAT to be detached: "+err.Error(),
+		)
+		return
+	}
+}
+
+// waitForPublicNatIpRemoved polls the load balancer's public NAT until the Show
+// call returns a not-found (404) error, indicating the NAT has been fully detached
+// and the associated public IP is deletable again.
+func waitForPublicNatIpRemoved(ctx context.Context, lbClient *loadbalancer.Client, loadbalancerId string) error {
+	return client.WaitForStatus(ctx, nil, []string{}, []string{"DELETED"}, func() (interface{}, string, error) {
+		info, err := lbClient.GetLoadbalancerPublicNatIp(ctx, loadbalancerId)
+		if err != nil {
+			// 404 / not found means the NAT is gone, which is the terminal success
+			// state. Surface the error so WaitForStatus stops; the caller treats a
+			// 404 error as success.
+			return nil, "", err
+		}
+		return info, info.StaticNat.State, nil
+	})
 }
 
 func createLoadbalancerNatModel(data *scploadbalancer.StaticNatCreateResponse) loadbalancer.LoadbalancerPublicNatIpDetail {

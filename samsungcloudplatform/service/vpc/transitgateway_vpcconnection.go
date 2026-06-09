@@ -162,7 +162,11 @@ func (r vpcTgwVpcConnectionResource) Create(ctx context.Context, req resource.Cr
 
 	// Set state to fully populated data
 	diags = resp.State.Set(ctx, plan)
-	err = waitForVpcConnectStatus(ctx, r.client, plan.TransitGatewayId.ValueString(), data.TransitGatewayVpcConnection.Id, []string{}, []string{"ACTIVE"})
+	// Non-empty Pending lets StateChangeConf short-circuit on a parked/ERROR state
+	// instead of polling for the full timeout (issue #76).
+	err = waitForVpcConnectStatus(ctx, r.client, plan.TransitGatewayId.ValueString(), data.TransitGatewayVpcConnection.Id,
+		[]string{common.CreatingState},
+		[]string{common.ActiveState})
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating tgw vpc connection",
@@ -246,7 +250,9 @@ func (r *vpcTgwVpcConnectionResource) Delete(ctx context.Context, req resource.D
 		return
 	}
 
-	err = waitForVpcConnectStatus(ctx, r.client, state.TransitGatewayId.ValueString(), state.Id.ValueString(), []string{}, []string{"DELETED"})
+	err = waitForVpcConnectStatus(ctx, r.client, state.TransitGatewayId.ValueString(), state.Id.ValueString(),
+		[]string{common.DeletingState, common.ActiveState},
+		[]string{common.DeletedState})
 	if err != nil && !strings.Contains(err.Error(), "404") {
 		resp.Diagnostics.AddError(
 			"Error deleting tgw vpc connection",

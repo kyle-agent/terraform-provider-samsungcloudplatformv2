@@ -18,6 +18,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
@@ -187,6 +188,10 @@ func (r *virtualServerServerResource) Schema(_ context.Context, _ resource.Schem
 				Description: "State",
 				Optional:    true,
 				Computed:    true,
+				// When the user omits `state`, the framework would otherwise leave the
+				// planned value unknown. Default it to "ACTIVE" so create does not require
+				// the user to set `state` explicitly (issue #67).
+				Default: stringdefault.StaticString("ACTIVE"),
 			},
 			common.ToSnakeCase("BootVolume"): schema.SingleNestedAttribute{
 				Description: "Boot Volume",
@@ -1474,7 +1479,10 @@ func (r *virtualServerServerResource) Create(ctx context.Context, req resource.C
 		return
 	}
 
-	if !plan.State.IsNull() {
+	// `state` is Optional+Computed. When the user omits it the planned value is
+	// null/unknown; in that case the API applies its default ("ACTIVE") and we must
+	// not reject the create. Only validate when the user explicitly set a value.
+	if !plan.State.IsNull() && !plan.State.IsUnknown() {
 		if plan.State.ValueString() != "ACTIVE" {
 			resp.Diagnostics.AddError(
 				"Error Creating Server",

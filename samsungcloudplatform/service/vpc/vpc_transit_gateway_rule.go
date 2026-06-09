@@ -216,7 +216,11 @@ func (r *vpcTgwRuleResource) Create(ctx context.Context, req resource.CreateRequ
 	// Set state to fully populated data
 	diags = resp.State.Set(ctx, plan)
 
-	err = waitForRoutingRuleStatus(ctx, r.client, plan.TransitGatewayId.ValueString(), data.TransitGatewayRule.Id, []string{}, []string{"ACTIVE"})
+	// Non-empty Pending lets StateChangeConf short-circuit on a parked/ERROR state
+	// instead of polling for the full timeout (issue #76).
+	err = waitForRoutingRuleStatus(ctx, r.client, plan.TransitGatewayId.ValueString(), data.TransitGatewayRule.Id,
+		[]string{common.CreatingState},
+		[]string{common.ActiveState})
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating transit gateway routing rule",
@@ -294,7 +298,9 @@ func (r vpcTgwRuleResource) Delete(ctx context.Context, req resource.DeleteReque
 		return
 	}
 
-	err = waitForRoutingRuleStatus(ctx, r.client, state.TransitGatewayId.ValueString(), state.Id.ValueString(), []string{}, []string{"DELETED"})
+	err = waitForRoutingRuleStatus(ctx, r.client, state.TransitGatewayId.ValueString(), state.Id.ValueString(),
+		[]string{common.DeletingState, common.ActiveState},
+		[]string{common.DeletedState})
 	if err != nil && !strings.Contains(err.Error(), "404") {
 		resp.Diagnostics.AddError(
 			"Error deleting transit gateway routing rule",

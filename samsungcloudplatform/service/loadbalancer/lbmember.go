@@ -215,9 +215,14 @@ func (r *loadbalancerLbMemberResource) ModifyPlan(ctx context.Context, req resou
 	objId := lbMemberCreate.ObjectId
 	memberIp := lbMemberCreate.MemberIp
 
-	// VM / BM / MNGC modes require object_id
+	// VM / BM / MNGC modes require object_id.
+	//
+	// #85: object_id is frequently wired to a computed attribute of a resource
+	// created in the same apply (e.g. `object_id = scp_virtualserver_server.this.id`).
+	// During plan that value is UNKNOWN, not yet null/empty, so the required check
+	// must be deferred to apply. Only error when object_id is KNOWN and empty/null.
 	if objType == "VM" || objType == "BM" || objType == "MNGC" {
-		if objId.IsNull() || objId.ValueString() == "" {
+		if !objId.IsUnknown() && (objId.IsNull() || objId.ValueString() == "") {
 			resp.Diagnostics.AddError(
 				"Missing object_id",
 				fmt.Sprintf(
@@ -228,15 +233,17 @@ func (r *loadbalancerLbMemberResource) ModifyPlan(ctx context.Context, req resou
 		}
 	}
 
-	// MANUAL mode requires member_ip and should not have object_id
+	// MANUAL mode requires member_ip and should not have object_id.
 	if objType == "MANUAL" {
-		if memberIp.IsNull() || memberIp.ValueString() == "" {
+		if !memberIp.IsUnknown() && (memberIp.IsNull() || memberIp.ValueString() == "") {
 			resp.Diagnostics.AddError(
 				"Missing member_ip",
 				"`member_ip` is required when `object_type` is `MANUAL`. Provide the target IP address.",
 			)
 		}
-		if !objId.IsNull() && objId.ValueString() != "" {
+		// Only flag a known, non-empty object_id; an unknown value may still
+		// resolve to empty/null at apply time.
+		if !objId.IsUnknown() && !objId.IsNull() && objId.ValueString() != "" {
 			resp.Diagnostics.AddError(
 				"Unnecessary object_id",
 				"`object_id` is not used when `object_type` is `MANUAL`. It should be ignored.",

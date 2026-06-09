@@ -596,7 +596,12 @@ func (client *Client) CreateRole(ctx context.Context, request RoleResource) (*sc
 	}
 
 	//policy ids
-	var policyIds []string
+	// NOTE: policy_ids is a required, non-omitempty list field in the API request
+	// (RoleCreateRequestV1Dot3.PolicyIds is `[]string` with json tag `policy_ids`, and
+	// is always emitted by ToMap). A nil slice marshals to JSON `null`, which the API
+	// rejects with `400 Bad Request: Input should be a valid list`. Initialize to an
+	// empty (non-nil) slice so an unset/empty policy_ids serializes as `[]`, not `null`.
+	policyIds := []string{}
 	for _, policyId := range request.PolicyIds {
 		policyIds = append(policyIds, policyId.ValueString())
 	}
