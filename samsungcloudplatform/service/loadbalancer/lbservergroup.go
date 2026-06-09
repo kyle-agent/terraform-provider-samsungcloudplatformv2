@@ -309,9 +309,51 @@ func (r *loadbalancerLbServerGroupResource) Delete(ctx context.Context, req reso
 		return
 	}
 
-	// Delete existing LB Server Group
-	err := r.client.DeleteLbServerGroup(ctx, state.Id.ValueString())
-	if err != nil {
+	// Before deleting, wait for the server group to reach a stable, deletable
+	// state. Removing an attached lb_member leaves the group transiently in
+	// EDITING; deleting while EDITING returns a 400
+	// "Unable to delete the LB Server Group in the current state (state: 'EDITING')".
+	err := waitForLbServerGroupStatus(
+		ctx,
+		r.client,
+		state.Id.ValueString(),
+		[]string{"EDITING", "PENDING"},
+		[]string{"ACTIVE"},
+	)
+	if err != nil && !strings.Contains(err.Error(), "404") {
+		resp.Diagnostics.AddError(
+			"Error Deleting LB Server Group",
+			"Error waiting for lb server group to become deletable: "+err.Error(),
+		)
+		return
+	}
+
+	// Delete existing LB Server Group. The group can briefly re-enter EDITING
+	// (e.g. an attached member/server is still being detached), so retry the
+	// delete on transient 400 "current state" / 409 conflict responses with a
+	// short wait between attempts. A 404 means it is already gone (success).
+	const maxDeleteAttempts = 30
+	for attempt := 0; ; attempt++ {
+		err = r.client.DeleteLbServerGroup(ctx, state.Id.ValueString())
+		if err == nil {
+			break
+		}
+		if strings.Contains(err.Error(), "404") {
+			// Already deleted.
+			return
+		}
+		transient := strings.Contains(err.Error(), "400") || strings.Contains(err.Error(), "409")
+		if transient && attempt < maxDeleteAttempts {
+			// Wait for the group to settle back to ACTIVE before retrying.
+			_ = waitForLbServerGroupStatus(
+				ctx,
+				r.client,
+				state.Id.ValueString(),
+				[]string{"EDITING", "PENDING"},
+				[]string{"ACTIVE"},
+			)
+			continue
+		}
 		detail := client.GetDetailFromError(err)
 		resp.Diagnostics.AddError(
 			"Error Deleting LB Server Group",
@@ -320,11 +362,11 @@ func (r *loadbalancerLbServerGroupResource) Delete(ctx context.Context, req reso
 		return
 	}
 
-	err = waitForLbServerGroupStatus(ctx, r.client, state.Id.ValueString(), []string{}, []string{"DELETED"})
+	err = waitForLbServerGroupStatus(ctx, r.client, state.Id.ValueString(), []string{"DELETING", "EDITING", "ACTIVE"}, []string{"DELETED"})
 	if err != nil && !strings.Contains(err.Error(), "404") {
 		resp.Diagnostics.AddError(
 			"Error Deleting LB Server Group",
-			"Error waiting for direct connect to become deleted: "+err.Error(),
+			"Error waiting for lb server group to become deleted: "+err.Error(),
 		)
 		return
 	}

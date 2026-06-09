@@ -24,8 +24,10 @@ type VpcPeeringCreateRequest struct {
 	// Approver VPC Account ID
 	ApproverVpcAccountId string `json:"approver_vpc_account_id"`
 	// Approver VPC ID
-	ApproverVpcId string         `json:"approver_vpc_id"`
-	Description   NullableString `json:"description,omitempty"`
+	ApproverVpcId string `json:"approver_vpc_id"`
+	// Approver VPC Name
+	ApproverVpcName *string        `json:"approver_vpc_name,omitempty"`
+	Description     NullableString `json:"description,omitempty"`
 	// VPC Peering Name
 	Name string `json:"name" validate:"regexp=^[a-zA-Z0-9-]*$"`
 	// Requester VPC ID
@@ -240,6 +242,9 @@ func (o VpcPeeringCreateRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["approver_vpc_account_id"] = o.ApproverVpcAccountId
 	toSerialize["approver_vpc_id"] = o.ApproverVpcId
+	if o.ApproverVpcName != nil {
+		toSerialize["approver_vpc_name"] = *o.ApproverVpcName
+	}
 	if o.Description.IsSet() {
 		toSerialize["description"] = o.Description.Get()
 	}

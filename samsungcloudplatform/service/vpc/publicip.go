@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/client"
 	"github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/client/vpc"
+	vpcV1Dot2 "github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/client/vpcv1d2"
 	"github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/common"
 	"github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/common/tag"
 	scpsdk "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/client"
 	scpvpc "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/library/vpc/1.1"
+	scpvpcV1Dot2 "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/library/vpc/1.2"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -31,9 +33,10 @@ func NewVpcPublicipResource() resource.Resource {
 
 // vpcPublicipResource is the data source implementation.
 type vpcPublicipResource struct {
-	config  *scpsdk.Configuration
-	client  *vpc.Client
-	clients *client.SCPClient
+	config       *scpsdk.Configuration
+	client       *vpc.Client
+	clientV1Dot2 *vpcV1Dot2.Client
+	clients      *client.SCPClient
 }
 
 // Metadata returns the data source type name.
@@ -148,6 +151,7 @@ func (r *vpcPublicipResource) Configure(_ context.Context, req resource.Configur
 	}
 
 	r.client = inst.Client.Vpc
+	r.clientV1Dot2 = inst.Client.VpcV1Dot2
 	r.clients = inst.Client
 }
 
@@ -195,9 +199,16 @@ func (r *vpcPublicipResource) Read(ctx context.Context, req resource.ReadRequest
 		return
 	}
 
-	// Get refreshed order value from publicip
-	data, err := r.client.GetPublicip(ctx, state.Id.ValueString())
+	// Get refreshed value from publicip using the v1.2 API. The v1.1
+	// PublicipAttachedResourceType enum lacks SUBNET, so decoding a SUBNET-attached
+	// public IP (e.g. one used by a subnet VIP NAT IP) through v1.1 fails during
+	// refresh/destroy. v1.2 includes SUBNET, so we read through it here.
+	data, statusCode, err := r.clientV1Dot2.GetPublicipWithStatus(ctx, state.Id.ValueString())
 	if err != nil {
+		if statusCode == 404 {
+			resp.State.RemoveResource(ctx)
+			return
+		}
 		detail := client.GetDetailFromError(err)
 		resp.Diagnostics.AddError(
 			"Error Reading publicip",
@@ -206,7 +217,7 @@ func (r *vpcPublicipResource) Read(ctx context.Context, req resource.ReadRequest
 		return
 	}
 
-	publicipModel := createPublicipModel(data)
+	publicipModel := createPublicipModelV1Dot2(data)
 	publicipObjectValue, diags := types.ObjectValueFrom(ctx, publicipModel.AttributeTypes(), publicipModel)
 	state.Publicip = publicipObjectValue
 
@@ -238,8 +249,9 @@ func (r *vpcPublicipResource) Update(ctx context.Context, req resource.UpdateReq
 		return
 	}
 
-	// Fetch updated items from GetPublicip as UpdatePublicip items are not populated.
-	data, err := r.client.GetPublicip(ctx, state.Id.ValueString())
+	// Fetch updated items via the v1.2 API (SUBNET-aware enum) as UpdatePublicip
+	// items are not populated.
+	data, _, err := r.clientV1Dot2.GetPublicipWithStatus(ctx, state.Id.ValueString())
 	if err != nil {
 		detail := client.GetDetailFromError(err)
 		resp.Diagnostics.AddError(
@@ -249,7 +261,7 @@ func (r *vpcPublicipResource) Update(ctx context.Context, req resource.UpdateReq
 		return
 	}
 
-	publicipModel := createPublicipModel(data)
+	publicipModel := createPublicipModelV1Dot2(data)
 	publicipObjectValue, diags := types.ObjectValueFrom(ctx, publicipModel.AttributeTypes(), publicipModel)
 	state.Publicip = publicipObjectValue
 
@@ -283,6 +295,35 @@ func (r *vpcPublicipResource) Delete(ctx context.Context, req resource.DeleteReq
 }
 
 func createPublicipModel(data *scpvpc.PublicipShowResponse) vpc.Publicip {
+	publicip := data.Publicip
+	publicipModel := vpc.Publicip{
+		IpAddress:            types.StringValue(data.GetPublicip().IpAddress),
+		AccountId:            types.StringValue(data.GetPublicip().AccountId),
+		AttachedResourceName: types.StringPointerValue(data.GetPublicip().AttachedResourceName.Get()),
+		AttachedResourceId:   types.StringPointerValue(data.GetPublicip().AttachedResourceId.Get()),
+		Type:                 types.StringValue(string(data.GetPublicip().Type)),
+		State:                types.StringValue(string(data.GetPublicip().State)),
+		Description:          types.StringPointerValue(data.GetPublicip().Description.Get()),
+		CreatedAt:            types.StringValue(data.GetPublicip().CreatedAt.Format(time.RFC3339)),
+		CreatedBy:            types.StringValue(data.GetPublicip().CreatedBy),
+		ModifiedAt:           types.StringValue(data.GetPublicip().ModifiedAt.Format(time.RFC3339)),
+		ModifiedBy:           types.StringValue(data.GetPublicip().ModifiedBy),
+	}
+	attachedResourceType := publicip.AttachedResourceType.Get()
+	if attachedResourceType != nil {
+		attachedResourceTypeStr := string(*attachedResourceType)
+		publicipModel.AttachedResourceType = types.StringPointerValue(&attachedResourceTypeStr)
+	} else {
+		publicipModel.AttachedResourceType = types.StringPointerValue(nil)
+	}
+	return publicipModel
+}
+
+// createPublicipModelV1Dot2 maps a v1.2 PublicipShowResponse (whose
+// AttachedResourceType enum includes SUBNET) into the same vpc.Publicip schema
+// model used by createPublicipModel. Used on the read path so SUBNET-attached
+// public IPs decode without error during refresh/destroy.
+func createPublicipModelV1Dot2(data *scpvpcV1Dot2.PublicipShowResponse) vpc.Publicip {
 	publicip := data.Publicip
 	publicipModel := vpc.Publicip{
 		IpAddress:            types.StringValue(data.GetPublicip().IpAddress),

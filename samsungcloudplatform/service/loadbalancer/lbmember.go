@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/client"
@@ -444,6 +445,27 @@ func (r *loadbalancerLbMemberResource) Delete(ctx context.Context, req resource.
 		resp.Diagnostics.AddError(
 			"Error Deleting LB Member",
 			"Could not delete lb member, unexpected error: "+err.Error()+"\nReason: "+detail,
+		)
+		return
+	}
+
+	// Removing a member transitions the parent LB Server Group into a transient
+	// EDITING state. Wait for it to settle back to ACTIVE before returning so a
+	// subsequent server group delete does not fail with a 400
+	// "Unable to delete the LB Server Group in the current state (state: 'EDITING')".
+	err = waitForLbServerGroupStatus(
+		ctx,
+		r.client,
+		state.LbServerGroupId.ValueString(),
+		[]string{"EDITING", "PENDING"},
+		[]string{"ACTIVE"},
+	)
+	// The server group may already be gone (e.g. concurrent destroy); a 404 here
+	// is not an error for the member delete.
+	if err != nil && !strings.Contains(err.Error(), "404") {
+		resp.Diagnostics.AddError(
+			"Error Deleting LB Member",
+			"Error waiting for lb server group to stabilize after member removal: "+err.Error(),
 		)
 		return
 	}

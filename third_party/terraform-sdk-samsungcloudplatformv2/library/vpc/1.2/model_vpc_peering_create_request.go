@@ -11,8 +11,8 @@ API version: 1.4.0.0rc1.dev2123
 package vpc
 
 import (
-	"encoding/json"
 	"bytes"
+	"encoding/json"
 	"fmt"
 )
 
@@ -25,7 +25,9 @@ type VpcPeeringCreateRequest struct {
 	ApproverVpcAccountId string `json:"approver_vpc_account_id"`
 	// Approver VPC ID
 	ApproverVpcId string `json:"approver_vpc_id"`
-	Description NullableString `json:"description,omitempty"`
+	// Approver VPC Name
+	ApproverVpcName *string        `json:"approver_vpc_name,omitempty"`
+	Description     NullableString `json:"description,omitempty"`
 	// VPC Peering Name
 	Name string `json:"name" validate:"regexp=^[a-zA-Z0-9-]*$"`
 	// Requester VPC ID
@@ -137,6 +139,7 @@ func (o *VpcPeeringCreateRequest) HasDescription() bool {
 func (o *VpcPeeringCreateRequest) SetDescription(v string) {
 	o.Description.Set(&v)
 }
+
 // SetDescriptionNil sets the value for Description to be an explicit nil
 func (o *VpcPeeringCreateRequest) SetDescriptionNil() {
 	o.Description.Set(nil)
@@ -228,7 +231,7 @@ func (o *VpcPeeringCreateRequest) SetTags(v []Tag) {
 }
 
 func (o VpcPeeringCreateRequest) MarshalJSON() ([]byte, error) {
-	toSerialize,err := o.ToMap()
+	toSerialize, err := o.ToMap()
 	if err != nil {
 		return []byte{}, err
 	}
@@ -239,6 +242,9 @@ func (o VpcPeeringCreateRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["approver_vpc_account_id"] = o.ApproverVpcAccountId
 	toSerialize["approver_vpc_id"] = o.ApproverVpcId
+	if o.ApproverVpcName != nil {
+		toSerialize["approver_vpc_name"] = *o.ApproverVpcName
+	}
 	if o.Description.IsSet() {
 		toSerialize["description"] = o.Description.Get()
 	}
@@ -266,10 +272,10 @@ func (o *VpcPeeringCreateRequest) UnmarshalJSON(data []byte) (err error) {
 	err = json.Unmarshal(data, &allProperties)
 
 	if err != nil {
-		return err;
+		return err
 	}
 
-	for _, requiredProperty := range(requiredProperties) {
+	for _, requiredProperty := range requiredProperties {
 		if _, exists := allProperties[requiredProperty]; !exists {
 			return fmt.Errorf("no value given for required property %v", requiredProperty)
 		}
@@ -325,5 +331,3 @@ func (v *NullableVpcPeeringCreateRequest) UnmarshalJSON(src []byte) error {
 	v.isSet = true
 	return json.Unmarshal(src, &v.value)
 }
-
-

@@ -206,7 +206,8 @@ func (r *vpcPeeringResource) Create(ctx context.Context, req resource.CreateRequ
 
 	// The API requires approver_vpc_name. If the user did not supply it,
 	// derive it from approver_vpc_id via a VPC lookup.
-	if plan.ApproverVpcName.IsNull() || plan.ApproverVpcName.IsUnknown() || plan.ApproverVpcName.ValueString() == "" {
+	userProvidedName := !plan.ApproverVpcName.IsNull() && !plan.ApproverVpcName.IsUnknown() && plan.ApproverVpcName.ValueString() != ""
+	if !userProvidedName {
 		vpcData, err := r.clients.Vpc.GetVpc(ctx, plan.ApproverVpcId.ValueString())
 		if err != nil {
 			detail := client.GetDetailFromError(err)
@@ -217,6 +218,19 @@ func (r *vpcPeeringResource) Create(ctx context.Context, req resource.CreateRequ
 			return
 		}
 		plan.ApproverVpcName = types.StringValue(vpcData.Vpc.Name)
+	}
+
+	// Guard: the API rejects the request with "no value given for required
+	// property approver_vpc_name" if this is empty. Fail fast with a clear
+	// message rather than sending an absent/empty field.
+	if plan.ApproverVpcName.IsNull() || plan.ApproverVpcName.IsUnknown() || plan.ApproverVpcName.ValueString() == "" {
+		resp.Diagnostics.AddError(
+			"Error creating vpc peering",
+			"approver_vpc_name is required by the API but could not be determined. "+
+				"Provide approver_vpc_name explicitly, or ensure approver_vpc_id ("+
+				plan.ApproverVpcId.ValueString()+") refers to an existing VPC with a name.",
+		)
+		return
 	}
 
 	// Create new vpc

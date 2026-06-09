@@ -310,11 +310,101 @@ func (r *VpcCidrResource) Update(ctx context.Context, req resource.UpdateRequest
 	)
 }
 
-// Delete deletes the resource and removes the Terraform state on success.
+// Delete removes the managed secondary CIDR from the VPC. This is the inverse of
+// Create (which ADDED the CIDR). There is no bulk "set CIDRs" endpoint, so we
+// locate the CIDR entry's id on the VPC and issue a DELETE for it, then wait
+// until the CIDR is no longer present. A 404 (VPC or CIDR already gone) is
+// treated as already deleted.
 func (r *VpcCidrResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	// TODO: Implement Delete function
-	resp.Diagnostics.AddError(
-		"Delete Not Implemented",
-		"VPC CIDR Delete function is not yet implemented.",
-	)
+	var state vpcV1Dot2.VpcCidrResource
+	diags := req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	vpcId := state.VpcId.ValueString()
+	targetCidr := state.Cidr.ValueString()
+
+	// Fetch the VPC to resolve the CIDR entry's id (needed for the DELETE path).
+	data, statusCode, err := r.client.GetVpcWithStatus(ctx, vpcId)
+	if err != nil {
+		if statusCode == 404 {
+			// VPC is gone; the CIDR is gone with it.
+			return
+		}
+		detail := client.GetDetailFromError(err)
+		resp.Diagnostics.AddError(
+			"Error Deleting VPC CIDR",
+			fmt.Sprintf("Could not read VPC %s before removing CIDR %s: %s. Details: %s", vpcId, targetCidr, err.Error(), detail),
+		)
+		return
+	}
+
+	cidrId := ""
+	for _, cidr := range data.Vpc.Cidrs {
+		if cidr.Cidr == targetCidr {
+			cidrId = cidr.Id
+			break
+		}
+	}
+	if cidrId == "" {
+		// CIDR already removed out-of-band; nothing to do.
+		return
+	}
+
+	removeStatus, err := r.client.RemoveVpcCidr(ctx, vpcId, cidrId)
+	if err != nil {
+		detail := client.GetDetailFromError(err)
+		resp.Diagnostics.AddError(
+			"Failed to remove VPC CIDR",
+			fmt.Sprintf("An error occurred while removing CIDR %s from VPC %s: %s. Details: %s", targetCidr, vpcId, err.Error(), detail),
+		)
+		return
+	}
+	if removeStatus == 404 {
+		// Already gone.
+		return
+	}
+
+	// Wait until the CIDR is no longer present on the VPC.
+	timeout := time.After(10 * time.Minute)
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+	for {
+		vpcData, sc, err := r.client.GetVpcWithStatus(ctx, vpcId)
+		if err != nil {
+			if sc == 404 {
+				return
+			}
+			detail := client.GetDetailFromError(err)
+			resp.Diagnostics.AddError(
+				"Error Waiting for VPC CIDR Removal",
+				fmt.Sprintf("Could not read VPC %s while waiting for CIDR %s removal: %s. Details: %s", vpcId, targetCidr, err.Error(), detail),
+			)
+			return
+		}
+
+		stillPresent := false
+		for _, cidr := range vpcData.Vpc.Cidrs {
+			if cidr.Cidr == targetCidr {
+				stillPresent = true
+				break
+			}
+		}
+		if !stillPresent {
+			return
+		}
+
+		select {
+		case <-timeout:
+			resp.Diagnostics.AddError(
+				"Timeout Waiting for VPC CIDR Removal",
+				fmt.Sprintf("CIDR %s was still present on VPC %s after waiting for removal.", targetCidr, vpcId),
+			)
+			return
+		case <-ticker.C:
+			// poll again
+		}
+	}
 }
