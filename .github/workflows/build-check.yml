@@ -1,12 +1,13 @@
-# Compile check for provider fixes on a branch. Local builds can't fetch the
-# private terraform-sdk-samsungcloudplatformv2; CI uses GH_ACCESS_TOKEN to clone it.
+# Compile check for provider fixes on a branch + fixes #50 (incomplete go.sum).
+# Local builds can't fetch the private terraform-sdk-samsungcloudplatformv2; CI uses
+# GH_ACCESS_TOKEN to clone it, runs `go mod tidy` to populate go.sum, then builds.
 name: build-check
 on:
   push:
     branches:
       - 'claude/**'
 permissions:
-  contents: read
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -22,9 +23,18 @@ jobs:
           cache: true
       - name: Config Access Token
         run: git config --global url.https://$GH_ACCESS_TOKEN@github.com/.insteadOf https://github.com/
+      - name: go mod tidy (populate go.sum, #50)
+        run: go mod tidy
       - name: go build
         run: go build ./...
-      - name: gofmt (changed-area only, non-blocking)
-        run: gofmt -l samsungcloudplatform/service/loadbalancer || true
-      - name: go vet (non-blocking)
-        run: go vet ./... || true
+      - name: Commit go.sum if it changed
+        run: |
+          if ! git diff --quiet go.mod go.sum; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add go.mod go.sum
+            git commit -m "build(#50): populate go.mod/go.sum so the provider compiles [skip ci]"
+            git push
+          else
+            echo "go.mod/go.sum already complete"
+          fi
