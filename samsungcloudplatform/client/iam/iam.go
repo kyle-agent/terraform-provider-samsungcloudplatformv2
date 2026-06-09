@@ -76,6 +76,18 @@ func (client *Client) UpdateAccessKey(ctx context.Context, accessKeyId string, r
 	return resp, err
 }
 
+func (client *Client) DisableAccessKey(ctx context.Context, accessKeyId string) (*scpsdkiam.AccessKeyResponse, error) {
+	req := client.sdkClient.IamV1AccessKeysApiAPI.AccessKeySet(ctx, accessKeyId)
+
+	isEnabled := false
+	req = req.AccessKeyUpdateRequest(scpsdkiam.AccessKeyUpdateRequest{
+		IsEnabled: &isEnabled,
+	})
+
+	resp, _, err := req.Execute()
+	return resp, err
+}
+
 func (client *Client) DeleteAccessKey(ctx context.Context, accessKeyId string) error {
 	req := client.sdkClient.IamV1AccessKeysApiAPI.AccessKeyDelete(ctx, accessKeyId)
 

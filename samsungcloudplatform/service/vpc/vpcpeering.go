@@ -63,6 +63,15 @@ func (r *vpcPeeringResource) Schema(_ context.Context, _ resource.SchemaRequest,
 				Description: "Approver VPC ID",
 				Required:    true,
 			},
+			common.ToSnakeCase("ApproverVpcName"): schema.StringAttribute{
+				Description: "Approver VPC Name. The API requires this value; when omitted " +
+					"the provider derives it from approver_vpc_id.",
+				Optional: true,
+				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
 			common.ToSnakeCase("RequesterVpcId"): schema.StringAttribute{
 				Description: "Requester VPC ID",
 				Required:    true,
@@ -195,6 +204,21 @@ func (r *vpcPeeringResource) Create(ctx context.Context, req resource.CreateRequ
 		return
 	}
 
+	// The API requires approver_vpc_name. If the user did not supply it,
+	// derive it from approver_vpc_id via a VPC lookup.
+	if plan.ApproverVpcName.IsNull() || plan.ApproverVpcName.IsUnknown() || plan.ApproverVpcName.ValueString() == "" {
+		vpcData, err := r.clients.Vpc.GetVpc(ctx, plan.ApproverVpcId.ValueString())
+		if err != nil {
+			detail := client.GetDetailFromError(err)
+			resp.Diagnostics.AddError(
+				"Error creating vpc peering",
+				"Could not resolve approver_vpc_name from approver_vpc_id "+plan.ApproverVpcId.ValueString()+": "+err.Error()+"\nReason: "+detail,
+			)
+			return
+		}
+		plan.ApproverVpcName = types.StringValue(vpcData.Vpc.Name)
+	}
+
 	// Create new vpc
 	data, err := r.client.CreateVpcPeering(ctx, plan)
 	if err != nil {
@@ -226,6 +250,7 @@ func (r *vpcPeeringResource) Create(ctx context.Context, req resource.CreateRequ
 		State:                    types.StringValue(string(vpcPeering.State)),
 	}
 	plan.Id = types.StringValue(vpcPeering.Id)
+	plan.ApproverVpcName = types.StringValue(vpcPeering.ApproverVpcName)
 	vpcObjectValue, diags := types.ObjectValueFrom(ctx, vpcPeeringModel.AttributeTypes(), vpcPeeringModel)
 	plan.VpcPeering = vpcObjectValue
 
@@ -298,6 +323,7 @@ func (r *vpcPeeringResource) Read(ctx context.Context, req resource.ReadRequest,
 	}
 	vpcObjectValue, diags := types.ObjectValueFrom(ctx, vpcPeeringModel.AttributeTypes(), vpcPeeringModel)
 
+	state.ApproverVpcName = types.StringValue(vpcPeering.ApproverVpcName)
 	state.VpcPeering = vpcObjectValue
 
 	// Set refreshed state
@@ -362,6 +388,7 @@ func (r *vpcPeeringResource) Update(ctx context.Context, req resource.UpdateRequ
 	}
 	vpcObjectValue, diags := types.ObjectValueFrom(ctx, vpcPeeringModel.AttributeTypes(), vpcPeeringModel)
 
+	state.ApproverVpcName = types.StringValue(vpcPeering.ApproverVpcName)
 	state.VpcPeering = vpcObjectValue
 
 	diags = resp.State.Set(ctx, state)
@@ -392,7 +419,7 @@ func (r *vpcPeeringResource) Delete(ctx context.Context, req resource.DeleteRequ
 		return
 	}
 
-	err = waitForVpcPeeringStatus(ctx, r.client, state.Id.ValueString(), []string{}, []string{"DELETED", "DELETING_REQUESTING"})
+	err = waitForVpcPeeringDeleted(ctx, r.client, state.Id.ValueString())
 	if err != nil && !strings.Contains(err.Error(), "404") {
 		resp.Diagnostics.AddError(
 			"Error deleting vpc peering",
@@ -411,6 +438,27 @@ func waitForVpcPeeringStatus(ctx context.Context, vpcClient *vpcv1.Client, id st
 		return info, string(info.VpcPeering.State), nil
 	})
 }
+
+// waitForVpcPeeringDeleted waits until the peering is gone. A real 404 (the
+// peering no longer exists) is treated as the terminal DELETED state rather than
+// a hard error, and DELETED/DELETING_REQUESTING are accepted as terminal too.
+func waitForVpcPeeringDeleted(ctx context.Context, vpcClient *vpcv1.Client, id string) error {
+	return client.WaitForStatus(ctx, nil, []string{"ACTIVE", "DELETING", "EDITING"}, []string{"DELETED", "DELETING_REQUESTING"}, func() (interface{}, string, error) {
+		info, statusCode, err := vpcClient.GetVpcPeeringWithStatus(ctx, id)
+		if err != nil {
+			if statusCode == 404 {
+				return &scpvpcShowSentinel{}, "DELETED", nil
+			}
+			return nil, "", err
+		}
+		return info, string(info.VpcPeering.State), nil
+	})
+}
+
+// scpvpcShowSentinel is a non-nil placeholder so the state-change machinery does
+// not interpret a successful 404 (resource gone) as an error.
+type scpvpcShowSentinel struct{}
+
 func stringFromNullable(value *string) types.String {
 	if value == nil || *value == "" {
 		return types.StringNull()

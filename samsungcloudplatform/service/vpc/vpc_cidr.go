@@ -216,13 +216,89 @@ func (r *VpcCidrResource) Create(ctx context.Context, req resource.CreateRequest
 
 // Read refreshes the Terraform state with the latest data.
 func (r *VpcCidrResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	// TODO: Implement Read function when needed, remove resource for now
+	// Get current state
+	var state vpcV1Dot2.VpcCidrResource
+	diags := req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	// resp.Diagnostics.AddError(
-	// 	"Read Not Implemented",
-	// 	"VPC CIDR Read function is not yet implemented.",
-	// )
-	resp.State.RemoveResource(ctx)
+	// Fetch the VPC. A real 404 means the VPC (and thus its CIDRs) is gone,
+	// so the resource is removed from state. Other errors are surfaced.
+	data, statusCode, err := r.client.GetVpcWithStatus(ctx, state.VpcId.ValueString())
+	if err != nil {
+		if statusCode == 404 {
+			resp.State.RemoveResource(ctx)
+			return
+		}
+		detail := client.GetDetailFromError(err)
+		resp.Diagnostics.AddError(
+			"Error Reading VPC CIDR",
+			fmt.Sprintf("Could not read VPC CIDR for VPC ID %s: %s. Details: %s", state.VpcId.ValueString(), err.Error(), detail),
+		)
+		return
+	}
+
+	// If the specific CIDR this resource manages is no longer present on the VPC,
+	// it has been removed out-of-band; drop it from state so it is re-created.
+	cidrFound := false
+	for _, cidr := range data.Vpc.Cidrs {
+		if cidr.Cidr == state.Cidr.ValueString() {
+			cidrFound = true
+			break
+		}
+	}
+	if !cidrFound {
+		resp.State.RemoveResource(ctx)
+		return
+	}
+
+	// Map API response to object (mirrors Create).
+	vpcCidr := &vpcV1Dot2.VpcCidrDetail{
+		Id:         types.StringValue(data.Vpc.Id),
+		Name:       types.StringValue(data.Vpc.Name),
+		AccountId:  types.StringValue(data.Vpc.AccountId),
+		State:      types.StringValue(string(data.Vpc.State)),
+		CidrCount:  types.Int32Value(data.Vpc.CidrCount),
+		CreatedAt:  types.StringValue(data.Vpc.CreatedAt.Format(time.RFC3339)),
+		CreatedBy:  types.StringValue(data.Vpc.CreatedBy),
+		ModifiedAt: types.StringValue(data.Vpc.ModifiedAt.Format(time.RFC3339)),
+		ModifiedBy: types.StringValue(data.Vpc.ModifiedBy),
+	}
+
+	if data.Vpc.Description.IsSet() {
+		if desc := data.Vpc.Description.Get(); desc != nil {
+			vpcCidr.Description = types.StringValue(*desc)
+		}
+	}
+
+	if data.Vpc.Cidrs != nil {
+		for _, cidr := range data.Vpc.Cidrs {
+			vpcCidr.Cidrs = append(vpcCidr.Cidrs, vpcV1Dot2.VpcCidrInfo{
+				Id:        types.StringValue(cidr.Id),
+				Cidr:      types.StringValue(cidr.Cidr),
+				CreatedAt: types.StringValue(cidr.CreatedAt.Format(time.RFC3339)),
+				CreatedBy: types.StringValue(cidr.CreatedBy),
+			})
+		}
+	} else {
+		vpcCidr.Cidrs = []vpcV1Dot2.VpcCidrInfo{}
+	}
+
+	vpcCidrObjectValue, objDiags := types.ObjectValueFrom(ctx, vpcCidr.AttributeTypes(), vpcCidr)
+	resp.Diagnostics.Append(objDiags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	state.Vpc = vpcCidrObjectValue
+
+	// Set refreshed state
+	diags = resp.State.Set(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 }
 
 // Update updates the resource and sets the updated Terraform state on success.

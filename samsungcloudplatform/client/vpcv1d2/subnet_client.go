@@ -65,7 +65,7 @@ func (client *Client) CreateSubnet(ctx context.Context, request SubnetResource) 
 		Cidr:             request.Cidr.ValueString(),
 		Description:      descriptionNS,
 		AllocationPools:  convertAllocationPoolsToInterface(request.AllocationPools),
-		DnsNameservers:   request.DnsNameservers,
+		DnsNameservers:   dnsNameserversToStringSlice(request.DnsNameservers),
 		HostRoutes:       convertHostRoutesToInterface(request.HostRoutes),
 		Tags:             tags,
 		GatewayIpAddress: *vpc.NewNullableString(request.GatewayIpAddress.ValueStringPointer()),

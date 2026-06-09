@@ -43,3 +43,17 @@ func (client *Client) ListPublicips(ctx context.Context, request PublicipDataSou
 	resp, _, err := req.Execute()
 	return resp, err
 }
+
+// GetPublicipWithStatus fetches a single public IP by ID using the v1.2 API
+// (whose PublicipAttachedResourceType enum includes SUBNET, unlike v1.1) and
+// returns the HTTP status code so callers can detect a real 404.
+func (client *Client) GetPublicipWithStatus(ctx context.Context, publicipId string) (*scpvpc.PublicipShowResponse, int, error) {
+	req := client.sdkClient.VpcV1PublicIpApiAPI.ShowPublicip(ctx, publicipId)
+
+	resp, httpResp, err := req.Execute()
+	statusCode := 0
+	if httpResp != nil {
+		statusCode = httpResp.StatusCode
+	}
+	return resp, statusCode, err
+}
