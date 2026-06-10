@@ -139,6 +139,12 @@ func (client *Client) DeleteLoadbalancerPublicNatIp(ctx context.Context, loadbal
 	return err
 }
 
+func (client *Client) GetLoadbalancerPublicNatIp(ctx context.Context, loadbalancerId string) (*loadbalancer.LoadbalancerStaticNatResponse, error) {
+	req := client.sdkClient.LoadbalancerV1LoadbalancersApiAPI.ShowLoadbalancerPublicNatIp(ctx, loadbalancerId)
+	resp, _, err := req.Execute()
+	return resp, err
+}
+
 func (client *Client) CreateLoadbalancerPrivateNatIp(ctx context.Context, request LoadbalancerPrivateNatIpResource) (*loadbalancer.PrivateStaticNatCreateResponse, error) {
 	req := client.sdkClient.LoadbalancerV1LoadbalancersApiAPI.CreateLoadbalancerPrivateNatIp(ctx, request.LoadbalancerId.ValueString())
 

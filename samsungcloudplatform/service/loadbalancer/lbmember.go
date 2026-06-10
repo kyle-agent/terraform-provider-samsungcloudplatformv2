@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/client"
@@ -215,9 +216,14 @@ func (r *loadbalancerLbMemberResource) ModifyPlan(ctx context.Context, req resou
 	objId := lbMemberCreate.ObjectId
 	memberIp := lbMemberCreate.MemberIp
 
-	// VM / BM / MNGC modes require object_id
+	// VM / BM / MNGC modes require object_id.
+	//
+	// #85: object_id is frequently wired to a computed attribute of a resource
+	// created in the same apply (e.g. `object_id = scp_virtualserver_server.this.id`).
+	// During plan that value is UNKNOWN, not yet null/empty, so the required check
+	// must be deferred to apply. Only error when object_id is KNOWN and empty/null.
 	if objType == "VM" || objType == "BM" || objType == "MNGC" {
-		if objId.IsNull() || objId.ValueString() == "" {
+		if !objId.IsUnknown() && (objId.IsNull() || objId.ValueString() == "") {
 			resp.Diagnostics.AddError(
 				"Missing object_id",
 				fmt.Sprintf(
@@ -228,15 +234,17 @@ func (r *loadbalancerLbMemberResource) ModifyPlan(ctx context.Context, req resou
 		}
 	}
 
-	// MANUAL mode requires member_ip and should not have object_id
+	// MANUAL mode requires member_ip and should not have object_id.
 	if objType == "MANUAL" {
-		if memberIp.IsNull() || memberIp.ValueString() == "" {
+		if !memberIp.IsUnknown() && (memberIp.IsNull() || memberIp.ValueString() == "") {
 			resp.Diagnostics.AddError(
 				"Missing member_ip",
 				"`member_ip` is required when `object_type` is `MANUAL`. Provide the target IP address.",
 			)
 		}
-		if !objId.IsNull() && objId.ValueString() != "" {
+		// Only flag a known, non-empty object_id; an unknown value may still
+		// resolve to empty/null at apply time.
+		if !objId.IsUnknown() && !objId.IsNull() && objId.ValueString() != "" {
 			resp.Diagnostics.AddError(
 				"Unnecessary object_id",
 				"`object_id` is not used when `object_type` is `MANUAL`. It should be ignored.",
@@ -437,6 +445,27 @@ func (r *loadbalancerLbMemberResource) Delete(ctx context.Context, req resource.
 		resp.Diagnostics.AddError(
 			"Error Deleting LB Member",
 			"Could not delete lb member, unexpected error: "+err.Error()+"\nReason: "+detail,
+		)
+		return
+	}
+
+	// Removing a member transitions the parent LB Server Group into a transient
+	// EDITING state. Wait for it to settle back to ACTIVE before returning so a
+	// subsequent server group delete does not fail with a 400
+	// "Unable to delete the LB Server Group in the current state (state: 'EDITING')".
+	err = waitForLbServerGroupStatus(
+		ctx,
+		r.client,
+		state.LbServerGroupId.ValueString(),
+		[]string{"EDITING", "PENDING"},
+		[]string{"ACTIVE"},
+	)
+	// The server group may already be gone (e.g. concurrent destroy); a 404 here
+	// is not an error for the member delete.
+	if err != nil && !strings.Contains(err.Error(), "404") {
+		resp.Diagnostics.AddError(
+			"Error Deleting LB Member",
+			"Error waiting for lb server group to stabilize after member removal: "+err.Error(),
 		)
 		return
 	}

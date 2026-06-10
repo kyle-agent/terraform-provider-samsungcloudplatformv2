@@ -55,6 +55,19 @@ func (client *Client) GetVpc(ctx context.Context, vpcId string) (*vpc.VpcShowRes
 	return resp, err
 }
 
+// GetVpcWithStatus returns the VPC along with the HTTP status code so callers
+// (e.g. Read) can distinguish a real 404 (gone) from other errors.
+func (client *Client) GetVpcWithStatus(ctx context.Context, vpcId string) (*vpc.VpcShowResponseV1Dot2, int, error) {
+	req := client.sdkClient.VpcV1VpcsApiAPI.ShowVpc(ctx, vpcId)
+
+	resp, httpResp, err := req.Execute()
+	statusCode := 0
+	if httpResp != nil {
+		statusCode = httpResp.StatusCode
+	}
+	return resp, statusCode, err
+}
+
 func (client *Client) UpdateVpc(ctx context.Context, vpcId string, request VpcResource) (*vpc.VpcShowResponseV1Dot2, error) {
 	req := client.sdkClient.VpcV1VpcsApiAPI.SetVpc(ctx, vpcId)
 

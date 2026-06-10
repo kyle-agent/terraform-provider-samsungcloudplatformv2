@@ -356,6 +356,24 @@ func (r *iamAccessKeyResource) Delete(ctx context.Context, req resource.DeleteRe
 		return
 	}
 
+	// An ENABLED access key cannot be deleted directly (the API rejects it with
+	// "Access key is Enabled"). Disable the key first, then delete it. (issue #58)
+	isEnabled := state.IsEnabled.ValueBool()
+	if data, err := r.client.GetAccessKey(ctx, state.Id.ValueString()); err == nil {
+		isEnabled = data.AccessKey.IsEnabled
+	}
+
+	if isEnabled {
+		if _, err := r.client.DisableAccessKey(ctx, state.Id.ValueString()); err != nil {
+			detail := client.GetDetailFromError(err)
+			resp.Diagnostics.AddError(
+				"Error Disabling iam access key",
+				"Could not disable access key before deletion, unexpected error: "+err.Error()+"\nReason: "+detail,
+			)
+			return
+		}
+	}
+
 	// Delete existing iam
 	err := r.client.DeleteAccessKey(ctx, state.Id.ValueString())
 	if err != nil {

@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"strings"
 	"time"
 )
 
@@ -203,18 +204,31 @@ func (r *loadbalancerLoadbalancerResource) Create(ctx context.Context, req resou
 	}
 
 	plan.Id = types.StringValue(data.Loadbalancer.Id)
-
-	// Map response body to schema and populate Computed attribute values
-	loadbalancerModel := createLoadbalancerModel(data)
-	loadbalancerObjectValue, diags := types.ObjectValueFrom(ctx, loadbalancerModel.AttributeTypes(), loadbalancerModel)
-	plan.Loadbalancer = loadbalancerObjectValue
-
-	// Set state to fully populated data
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	// #77: wait for the load balancer to reach ACTIVE before returning. The create
+	// API returns immediately while the LB is still CREATING, so a quick destroy
+	// (or any child op such as a NAT-IP attach) otherwise fails with
+	// "not in a deletable state (CREATING)" / "Unable to update loadbalancer in
+	// current state (CREATING)", and the half-created LB leaks.
+	err = waitForLoadbalancerStatus(ctx, r.client, data.Loadbalancer.Id, []string{}, []string{"ACTIVE"})
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error creating Loadbalancer",
+			"Error waiting for loadbalancer to become active: "+err.Error(),
+		)
+		return
+	}
+
+	// Refresh state from the now-ACTIVE load balancer.
+	readReq := resource.ReadRequest{State: resp.State}
+	readResp := &resource.ReadResponse{State: resp.State}
+	r.Read(ctx, readReq, readResp)
+	resp.State = readResp.State
 }
 
 // Read refreshes the Terraform state with the latest data.
@@ -305,6 +319,11 @@ func (r *loadbalancerLoadbalancerResource) Delete(ctx context.Context, req resou
 		return
 	}
 
+	// #77: the platform rejects deletes while the LB is still CREATING. Wait until
+	// it leaves CREATING (becomes deletable) before attempting the delete, so a
+	// create->destroy in quick succession does not leak the load balancer.
+	_ = waitForLoadbalancerStatus(ctx, r.client, state.Id.ValueString(), []string{"CREATING"}, []string{"ACTIVE"})
+
 	// Delete existing Loadbalancer
 	err := r.client.DeleteLoadbalancer(ctx, state.Id.ValueString())
 	if err != nil {
@@ -315,6 +334,30 @@ func (r *loadbalancerLoadbalancerResource) Delete(ctx context.Context, req resou
 		)
 		return
 	}
+
+	// #77: the delete is asynchronous; wait until the LB is fully gone (Get -> 404)
+	// so that a dependent subnet/VPC delete in the same `terraform destroy` does not
+	// fail with 409 "Cannot terminate due to associated resources".
+	err = waitForLoadbalancerStatus(ctx, r.client, state.Id.ValueString(), []string{}, []string{"DELETED"})
+	if err != nil && !strings.Contains(err.Error(), "404") && !strings.Contains(err.Error(), "not found") {
+		resp.Diagnostics.AddError(
+			"Error Deleting Loadbalancer",
+			"Error waiting for loadbalancer to be deleted: "+err.Error(),
+		)
+		return
+	}
+}
+
+// waitForLoadbalancerStatus polls the load balancer until it leaves pendingStates
+// and reaches one of targetStates (see #77).
+func waitForLoadbalancerStatus(ctx context.Context, lbClient *loadbalancer.Client, id string, pendingStates []string, targetStates []string) error {
+	return client.WaitForStatus(ctx, nil, pendingStates, targetStates, func() (interface{}, string, error) {
+		info, err := lbClient.GetLoadbalancer(ctx, id)
+		if err != nil {
+			return nil, "", err
+		}
+		return info, info.Loadbalancer.State, nil
+	})
 }
 
 func createLoadbalancerModel(data *scploadbalancer.LoadbalancerCreateResponse) loadbalancer.LoadbalancerCreateResponseDetail {

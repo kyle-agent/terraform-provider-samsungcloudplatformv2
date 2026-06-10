@@ -3,7 +3,9 @@ package vpcv1d2
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 
 	scpsdk "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/client"
 	scpvpc "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/library/vpc/1.2"
@@ -133,6 +135,64 @@ func (client *Client) AddVpcCidr(ctx context.Context, request VpcCidrResource) (
 	req = req.VpcCidrCreateRequest(createReq)
 	resp, _, err := req.Execute()
 	return resp, err
+}
+
+// RemoveVpcCidr removes a secondary CIDR from a VPC. The generated SDK only
+// exposes AddVpcCidr (POST /v1/vpcs/{vpc_id}/cidrs); the inverse is a DELETE on
+// /v1/vpcs/{vpc_id}/cidrs/{cidr_id}. We build that signed request using the
+// SDK's own exported helpers so it behaves identically to generated calls.
+// It returns the HTTP status code so callers can treat 404 as already-deleted.
+func (client *Client) RemoveVpcCidr(ctx context.Context, vpcId string, cidrId string) (int, error) {
+	cfg := client.sdkClient.GetConfig()
+
+	// Resolve the service base path exactly like the generated SDK does.
+	basePath := cfg.Endpoint
+	if basePath == "" {
+		catalog := scpsdk.NewCatalog(
+			cfg.AuthUrl,
+			cfg.Credentials.AccessKey,
+			cfg.Credentials.SecretKey,
+			cfg.DefaultRegion,
+		)
+		ep, err := catalog.GetEndpoint(cfg.ServiceType, cfg.Region, cfg.AccountId)
+		if err != nil {
+			return 0, err
+		}
+		basePath = ep
+	}
+
+	fullPath := basePath + "/v1/vpcs/" + url.PathEscape(vpcId) + "/cidrs/" + url.PathEscape(cidrId)
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodDelete, fullPath, nil)
+	if err != nil {
+		return 0, err
+	}
+	httpReq.Header.Set("Accept", "application/json")
+	httpReq.Header.Set("Scp-API-Version", "vpc 1.2")
+	if cfg.Credentials.AuthToken != "" {
+		httpReq.Header.Set("X-Auth-Token", cfg.Credentials.AuthToken)
+	}
+
+	// Sign the request (Scp-AccessKey / Scp-Signature / Scp-Timestamp / etc.).
+	cfg.SetupRequestHeader(fullPath, http.MethodDelete, httpReq)
+
+	httpClient := cfg.HTTPClient
+	if httpClient == nil {
+		httpClient = http.DefaultClient
+	}
+
+	resp, err := httpClient.Do(httpReq)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	statusCode := resp.StatusCode
+	if statusCode >= 300 && statusCode != http.StatusNotFound {
+		body, _ := io.ReadAll(resp.Body)
+		return statusCode, fmt.Errorf("failed to remove VPC CIDR (status %d): %s", statusCode, string(body))
+	}
+	return statusCode, nil
 }
 
 // ------------ Subnet VIP Port Client Methods ------------

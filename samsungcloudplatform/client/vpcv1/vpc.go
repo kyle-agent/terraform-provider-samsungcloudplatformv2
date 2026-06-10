@@ -74,14 +74,20 @@ func (client *Client) CreateVpcPeering(ctx context.Context, request VpcPeeringRe
 
 	tags := convertToTags(request.Tags.Elements())
 
-	req = req.VpcPeeringCreateRequest(scpvpc.VpcPeeringCreateRequest{
+	createReq := scpvpc.VpcPeeringCreateRequest{
 		ApproverVpcAccountId: request.ApproverVpcAccountId.ValueString(),
 		ApproverVpcId:        request.ApproverVpcId.ValueString(),
 		Name:                 request.Name.ValueString(),
 		RequesterVpcId:       request.RequesterVpcId.ValueString(),
 		Description:          *scpvpc.NewNullableString(request.Description.ValueStringPointer()),
 		Tags:                 tags,
-	})
+	}
+	// The API requires approver_vpc_name. Send it when known (derived in the
+	// resource Create from approver_vpc_id, or provided directly by the user).
+	if !request.ApproverVpcName.IsNull() && !request.ApproverVpcName.IsUnknown() && request.ApproverVpcName.ValueString() != "" {
+		createReq.ApproverVpcName = request.ApproverVpcName.ValueStringPointer()
+	}
+	req = req.VpcPeeringCreateRequest(createReq)
 
 	resp, _, err := req.Execute()
 	return resp, err
@@ -104,6 +110,19 @@ func (client *Client) GetVpcPeering(ctx context.Context, vpcPeeringId string) (*
 
 	resp, _, err := req.Execute()
 	return resp, err
+}
+
+// GetVpcPeeringWithStatus returns the peering along with the HTTP status code so
+// callers (e.g. delete waiters) can distinguish a real 404 (gone) from other errors.
+func (client *Client) GetVpcPeeringWithStatus(ctx context.Context, vpcPeeringId string) (*scpvpc.VpcPeeringShowResponse, int, error) {
+	req := client.sdkClient.VpcV1VpcPeeringApiAPI.ShowVpcPeering(ctx, vpcPeeringId)
+
+	resp, httpResp, err := req.Execute()
+	statusCode := 0
+	if httpResp != nil {
+		statusCode = httpResp.StatusCode
+	}
+	return resp, statusCode, err
 }
 
 func (client *Client) DeleteVpcPeering(ctx context.Context, vpcPeeringId string) error {

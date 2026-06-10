@@ -35,6 +35,7 @@ type VpcPeeringResource struct {
 	ApproverVpcAccountId types.String `tfsdk:"approver_vpc_account_id"`
 	Name                 types.String `tfsdk:"name"`
 	ApproverVpcId        types.String `tfsdk:"approver_vpc_id"`
+	ApproverVpcName      types.String `tfsdk:"approver_vpc_name"`
 	RequesterVpcId       types.String `tfsdk:"requester_vpc_id"`
 	Description          types.String `tfsdk:"description"`
 	VpcPeering           types.Object `tfsdk:"vpc_peering"`

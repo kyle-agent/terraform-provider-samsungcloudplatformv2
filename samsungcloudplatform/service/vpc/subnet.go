@@ -253,6 +253,7 @@ func (r *vpcSubnetResource) Create(ctx context.Context, req resource.CreateReque
 
 	subnet := data.Subnet
 	plan.Id = types.StringValue(subnet.Id)
+	plan.DnsNameservers = vpc.DnsNameserversToList(subnet.DnsNameservers)
 	diags = resp.State.Set(ctx, plan)
 
 	err = waitForSubnetStatus(ctx, r.client, subnet.Id, []string{}, []string{"ACTIVE"})
@@ -309,6 +310,7 @@ func (r *vpcSubnetResource) Read(ctx context.Context, req resource.ReadRequest, 
 	state.ModifiedAt = types.StringValue(subnet.ModifiedAt.Format(time.RFC3339))
 	state.ModifiedBy = types.StringValue(subnet.ModifiedBy)
 	state.DhcpIpAddress = types.StringPointerValue(subnet.DhcpIpAddress.Get())
+	state.DnsNameservers = vpc.DnsNameserversToList(subnet.DnsNameservers)
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)

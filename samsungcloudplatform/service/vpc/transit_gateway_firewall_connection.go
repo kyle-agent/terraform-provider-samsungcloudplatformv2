@@ -201,7 +201,13 @@ func (r *tgwFirewallConnectionResource) Create(ctx context.Context, req resource
 		}
 	}
 
-	err = waitForFirewallConnectionState(ctx, r.clientv1d2, plan.TransitGatewayId.ValueString(), []string{}, []string{"ACTIVE"})
+	// Firewall connection states (SDK TransitGatewayFirewallConnectionState):
+	// ATTACHING, ACTIVE, DETACHING, INACTIVE, DELETED, ERROR. Listing the
+	// transitional state in Pending lets StateChangeConf short-circuit on a
+	// parked/ERROR state instead of polling for the full timeout (issue #76).
+	err = waitForFirewallConnectionState(ctx, r.clientv1d2, plan.TransitGatewayId.ValueString(),
+		[]string{"ATTACHING"},
+		[]string{common.ActiveState})
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating transit gateway routing rule",
@@ -299,7 +305,9 @@ func (r *tgwFirewallConnectionResource) Delete(ctx context.Context, req resource
 		return
 	}
 
-	err = waitForFirewallConnectionState(ctx, r.clientv1d2, state.TransitGatewayId.ValueString(), []string{}, []string{"INACTIVE"})
+	err = waitForFirewallConnectionState(ctx, r.clientv1d2, state.TransitGatewayId.ValueString(),
+		[]string{"DETACHING", common.ActiveState},
+		[]string{common.InActiveState})
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating transit gateway routing rule",

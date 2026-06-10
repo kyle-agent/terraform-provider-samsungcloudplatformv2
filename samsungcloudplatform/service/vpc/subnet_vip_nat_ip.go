@@ -219,6 +219,41 @@ func (r *VPCSubnetVipNatIpResource) Delete(ctx context.Context, req resource.Del
 		)
 		return
 	}
+
+	// Deleting the static NAT detaches the public IP from the VIP, but the
+	// public IP's attachment (recorded with attached_resource_type=SUBNET) may
+	// clear asynchronously. Wait until the public IP reports detached so that a
+	// subsequent publicip refresh/destroy does not fail reading a SUBNET-typed
+	// attachment ("SUBNET is not a valid PublicipAttachedResourceType").
+	err = waitForPublicipDetached(ctx, r.client, state.PublicipId.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error deleting VPC Subnet VIP NAT IP",
+			"Error waiting for public IP to be detached from the VIP: "+err.Error(),
+		)
+		return
+	}
+}
+
+// waitForPublicipDetached polls the public IP (via the v1.2 API, which supports
+// the SUBNET attached-resource-type) until it is no longer attached to any
+// resource. A 404 (public IP already gone) is treated as detached.
+func waitForPublicipDetached(ctx context.Context, vpcClient *vpcv1d2.Client, publicipId string) error {
+	return client.WaitForStatus(ctx, nil, []string{"ATTACHED"}, []string{"DETACHED"}, func() (interface{}, string, error) {
+		info, statusCode, err := vpcClient.GetPublicipWithStatus(ctx, publicipId)
+		if err != nil {
+			if statusCode == 404 {
+				return struct{}{}, "DETACHED", nil
+			}
+			return nil, "", err
+		}
+		publicip := info.GetPublicip()
+		// Attachment is considered cleared when there is no attached resource id.
+		if !publicip.AttachedResourceId.IsSet() || publicip.AttachedResourceId.Get() == nil || *publicip.AttachedResourceId.Get() == "" {
+			return info, "DETACHED", nil
+		}
+		return info, "ATTACHED", nil
+	})
 }
 
 func (r *VPCSubnetVipNatIpResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
