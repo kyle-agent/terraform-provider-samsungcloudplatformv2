@@ -208,6 +208,26 @@ func (client *Client) UpdateVolumeReplication(ctx context.Context, id string, vo
 	return err
 }
 
+// PauseVolumeReplication sets the replication policy to "paused" via
+// PUT /v1/replications/{replication_id}?volume_id={volume_id} with body
+// {"replication_update_type": "policy", "replication_policy": "paused"}.
+// The platform requires the policy to be paused before the replication can be
+// deleted ("Replication Policy : paused > delete"), so Delete calls this first.
+// Only the two fields are attached so unset optionals are not serialized as
+// explicit JSON nulls (the vpc-peering description bug pattern).
+func (client *Client) PauseVolumeReplication(ctx context.Context, id string, volumeId string) error {
+	req := client.sdkClient.FilestorageV1VolumeReplicationAPIsAPI.SetVolumeReplication(ctx, id).VolumeId(volumeId)
+
+	updateReq := scpfilestorage.ReplicationUpdateRequest{
+		ReplicationUpdateType: "policy",
+	}
+	updateReq.SetReplicationPolicy(scpfilestorage.REPLICATIONUPDATESTATUSENUM_PAUSED)
+	req = req.ReplicationUpdateRequest(updateReq)
+
+	_, _, err := req.Execute()
+	return err
+}
+
 func (client *Client) GetVolumeReplicationList(ctx context.Context, id string) (*scpfilestorage.ReplicationListResponse, error) {
 	req := client.sdkClient.FilestorageV1VolumeReplicationAPIsAPI.ListVolumeReplications(ctx)
 	req = req.VolumeId(id)

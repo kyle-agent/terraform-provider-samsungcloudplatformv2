@@ -494,7 +494,11 @@ func (a *FilestorageV1SnapshotScheduleAPIsAPIService) ListSnapshotScheduleExecut
 			var v []ValidationErrorModel
 			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
 			if err != nil {
-				newErr.ErrorMessage = err.Error()
+				// The platform sometimes returns a 400 error OBJECT instead of the
+				// documented []ValidationErrorModel array ("cannot unmarshal object
+				// into []filestorage.ValidationErrorModel"). Fall back to the raw
+				// body so the real error text is surfaced (the #80 pattern).
+				newErr.ErrorMessage = localVarHTTPResponse.Status + ": " + string(localVarBody)
 				return localVarReturnValue, localVarHTTPResponse, newErr
 			}
 			newErr.ErrorMessage = formatErrorMessage(localVarHTTPResponse.Status, &v)

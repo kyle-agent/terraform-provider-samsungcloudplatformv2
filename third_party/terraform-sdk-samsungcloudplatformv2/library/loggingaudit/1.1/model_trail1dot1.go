@@ -34,9 +34,11 @@ type Trail1dot1 struct {
 	CreatedBy string `json:"created_by"`
 	CreatedUserId NullableString `json:"created_user_id,omitempty"`
 	DelYn NullableString `json:"del_yn,omitempty"`
+	IamRoleId NullableString `json:"iam_role_id,omitempty"`
 	// ID
 	Id string `json:"id"`
 	LogArchiveAccountId NullableString `json:"log_archive_account_id,omitempty"`
+	LogGroupName NullableString `json:"log_group_name,omitempty"`
 	LogTypeTotalYn NullableString `json:"log_type_total_yn,omitempty"`
 	LogVerificationYn NullableString `json:"log_verification_yn,omitempty"`
 	// Modified At
@@ -48,6 +50,7 @@ type Trail1dot1 struct {
 	RegionNames []interface{} `json:"region_names,omitempty"`
 	RegionTotalYn NullableString `json:"region_total_yn,omitempty"`
 	ResourceTypeTotalYn NullableString `json:"resource_type_total_yn,omitempty"`
+	ServiceWatchYn NullableString `json:"service_watch_yn,omitempty"`
 	State NullableString `json:"state,omitempty"`
 	// Target log type list
 	TargetLogTypes []interface{} `json:"target_log_types,omitempty"`
@@ -360,6 +363,48 @@ func (o *Trail1dot1) UnsetDelYn() {
 	o.DelYn.Unset()
 }
 
+// GetIamRoleId returns the IamRoleId field value if set, zero value otherwise (both if not set or set to explicit null).
+func (o *Trail1dot1) GetIamRoleId() string {
+	if o == nil || IsNil(o.IamRoleId.Get()) {
+		var ret string
+		return ret
+	}
+	return *o.IamRoleId.Get()
+}
+
+// GetIamRoleIdOk returns a tuple with the IamRoleId field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+// NOTE: If the value is an explicit nil, `nil, true` will be returned
+func (o *Trail1dot1) GetIamRoleIdOk() (*string, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return o.IamRoleId.Get(), o.IamRoleId.IsSet()
+}
+
+// HasIamRoleId returns a boolean if a field has been set.
+func (o *Trail1dot1) HasIamRoleId() bool {
+	if o != nil && o.IamRoleId.IsSet() {
+		return true
+	}
+
+	return false
+}
+
+// SetIamRoleId gets a reference to the given NullableString and assigns it to the IamRoleId field.
+func (o *Trail1dot1) SetIamRoleId(v string) {
+	o.IamRoleId.Set(&v)
+}
+// SetIamRoleIdNil sets the value for IamRoleId to be an explicit nil
+func (o *Trail1dot1) SetIamRoleIdNil() {
+	o.IamRoleId.Set(nil)
+}
+
+// UnsetIamRoleId ensures that no value is present for IamRoleId, not even an explicit nil
+func (o *Trail1dot1) UnsetIamRoleId() {
+	o.IamRoleId.Unset()
+}
+
 // GetId returns the Id field value
 func (o *Trail1dot1) GetId() string {
 	if o == nil {
@@ -424,6 +469,48 @@ func (o *Trail1dot1) SetLogArchiveAccountIdNil() {
 // UnsetLogArchiveAccountId ensures that no value is present for LogArchiveAccountId, not even an explicit nil
 func (o *Trail1dot1) UnsetLogArchiveAccountId() {
 	o.LogArchiveAccountId.Unset()
+}
+
+// GetLogGroupName returns the LogGroupName field value if set, zero value otherwise (both if not set or set to explicit null).
+func (o *Trail1dot1) GetLogGroupName() string {
+	if o == nil || IsNil(o.LogGroupName.Get()) {
+		var ret string
+		return ret
+	}
+	return *o.LogGroupName.Get()
+}
+
+// GetLogGroupNameOk returns a tuple with the LogGroupName field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+// NOTE: If the value is an explicit nil, `nil, true` will be returned
+func (o *Trail1dot1) GetLogGroupNameOk() (*string, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return o.LogGroupName.Get(), o.LogGroupName.IsSet()
+}
+
+// HasLogGroupName returns a boolean if a field has been set.
+func (o *Trail1dot1) HasLogGroupName() bool {
+	if o != nil && o.LogGroupName.IsSet() {
+		return true
+	}
+
+	return false
+}
+
+// SetLogGroupName gets a reference to the given NullableString and assigns it to the LogGroupName field.
+func (o *Trail1dot1) SetLogGroupName(v string) {
+	o.LogGroupName.Set(&v)
+}
+// SetLogGroupNameNil sets the value for LogGroupName to be an explicit nil
+func (o *Trail1dot1) SetLogGroupNameNil() {
+	o.LogGroupName.Set(nil)
+}
+
+// UnsetLogGroupName ensures that no value is present for LogGroupName, not even an explicit nil
+func (o *Trail1dot1) UnsetLogGroupName() {
+	o.LogGroupName.Unset()
 }
 
 // GetLogTypeTotalYn returns the LogTypeTotalYn field value if set, zero value otherwise (both if not set or set to explicit null).
@@ -714,6 +801,48 @@ func (o *Trail1dot1) SetResourceTypeTotalYnNil() {
 // UnsetResourceTypeTotalYn ensures that no value is present for ResourceTypeTotalYn, not even an explicit nil
 func (o *Trail1dot1) UnsetResourceTypeTotalYn() {
 	o.ResourceTypeTotalYn.Unset()
+}
+
+// GetServiceWatchYn returns the ServiceWatchYn field value if set, zero value otherwise (both if not set or set to explicit null).
+func (o *Trail1dot1) GetServiceWatchYn() string {
+	if o == nil || IsNil(o.ServiceWatchYn.Get()) {
+		var ret string
+		return ret
+	}
+	return *o.ServiceWatchYn.Get()
+}
+
+// GetServiceWatchYnOk returns a tuple with the ServiceWatchYn field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+// NOTE: If the value is an explicit nil, `nil, true` will be returned
+func (o *Trail1dot1) GetServiceWatchYnOk() (*string, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return o.ServiceWatchYn.Get(), o.ServiceWatchYn.IsSet()
+}
+
+// HasServiceWatchYn returns a boolean if a field has been set.
+func (o *Trail1dot1) HasServiceWatchYn() bool {
+	if o != nil && o.ServiceWatchYn.IsSet() {
+		return true
+	}
+
+	return false
+}
+
+// SetServiceWatchYn gets a reference to the given NullableString and assigns it to the ServiceWatchYn field.
+func (o *Trail1dot1) SetServiceWatchYn(v string) {
+	o.ServiceWatchYn.Set(&v)
+}
+// SetServiceWatchYnNil sets the value for ServiceWatchYn to be an explicit nil
+func (o *Trail1dot1) SetServiceWatchYnNil() {
+	o.ServiceWatchYn.Set(nil)
+}
+
+// UnsetServiceWatchYn ensures that no value is present for ServiceWatchYn, not even an explicit nil
+func (o *Trail1dot1) UnsetServiceWatchYn() {
+	o.ServiceWatchYn.Unset()
 }
 
 // GetState returns the State field value if set, zero value otherwise (both if not set or set to explicit null).
@@ -1222,9 +1351,15 @@ func (o Trail1dot1) ToMap() (map[string]interface{}, error) {
 	if o.DelYn.IsSet() {
 		toSerialize["del_yn"] = o.DelYn.Get()
 	}
+	if o.IamRoleId.IsSet() {
+		toSerialize["iam_role_id"] = o.IamRoleId.Get()
+	}
 	toSerialize["id"] = o.Id
 	if o.LogArchiveAccountId.IsSet() {
 		toSerialize["log_archive_account_id"] = o.LogArchiveAccountId.Get()
+	}
+	if o.LogGroupName.IsSet() {
+		toSerialize["log_group_name"] = o.LogGroupName.Get()
 	}
 	if o.LogTypeTotalYn.IsSet() {
 		toSerialize["log_type_total_yn"] = o.LogTypeTotalYn.Get()
@@ -1245,6 +1380,9 @@ func (o Trail1dot1) ToMap() (map[string]interface{}, error) {
 	}
 	if o.ResourceTypeTotalYn.IsSet() {
 		toSerialize["resource_type_total_yn"] = o.ResourceTypeTotalYn.Get()
+	}
+	if o.ServiceWatchYn.IsSet() {
+		toSerialize["service_watch_yn"] = o.ServiceWatchYn.Get()
 	}
 	if o.State.IsSet() {
 		toSerialize["state"] = o.State.Get()
