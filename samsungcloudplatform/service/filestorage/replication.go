@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"strconv"
+	"strings"
 )
 
 const ReplicationId = "replicationId"
@@ -24,6 +25,7 @@ const ReplicationFrequency = "replicationFrequency"
 const ModifySchedule = "modify_schedule"
 const Backup = "backup"
 const Use = "use"
+const Paused = "paused"
 
 var (
 	_ resource.Resource              = &fileStorageReplicationResource{}
@@ -326,11 +328,43 @@ func (f *fileStorageReplicationResource) Delete(ctx context.Context, request res
 		return
 	}
 	f.client.Config.Region = state.ReplicationVolumeRegion.ValueString()
+	replicationId := state.ReplicationId.ValueString()
+	volumeId := state.ReplicationVolumeId.ValueString()
+
+	// The platform refuses to delete a replication (or its backing volume) while the
+	// replication policy is still active: 400 "Cannot delete volume because replication
+	// is in use. Delete Replication Policy. -Replication Policy : paused > delete".
+	// Mirror the loadbalancer #77 fix style: set the policy to "paused"
+	// (PUT /v1/replications/{id} with replication_update_type "policy"), poll until the
+	// replication reports paused, then delete, then wait until it is fully gone.
+	replication, getErr := f.client.GetVolumeReplication(ctx, replicationId, volumeId)
+	if getErr == nil && replication.ReplicationPolicy != Paused {
+		if err = f.client.PauseVolumeReplication(ctx, replicationId, volumeId); err != nil {
+			detail := client.GetDetailFromError(err)
+			response.Diagnostics.AddError(
+				"Error Delete Replication",
+				"Could not pause replication policy before delete, unexpected error : "+err.Error()+"\nReason: "+detail)
+			return
+		}
+
+		var params = map[string]string{
+			ReplicationId: replicationId,
+			VolumeId:      volumeId,
+			FieldName:     ReplicationPolicy,
+		}
+		if _, err = waitForReplicationStatus(ctx, f.client, params, []string{}, []string{Paused}); err != nil {
+			response.Diagnostics.AddError(
+				"Error Delete Replication",
+				"Error waiting for replication policy to pause: "+err.Error())
+			return
+		}
+	}
+
 	if state.ReplicationType == types.StringValue("backup") {
-		err = f.client.DeleteVolume(ctx, state.ReplicationVolumeId.ValueString())
+		err = f.client.DeleteVolume(ctx, volumeId)
 
 	} else {
-		err = f.client.DeleteVolumeReplication(ctx, state.ReplicationId.ValueString(), state.ReplicationVolumeId.ValueString())
+		err = f.client.DeleteVolumeReplication(ctx, replicationId, volumeId)
 	}
 
 	if err != nil {
@@ -338,6 +372,17 @@ func (f *fileStorageReplicationResource) Delete(ctx context.Context, request res
 		response.Diagnostics.AddError(
 			"Error Delete Replication",
 			"Could not Delete Replication, unexpected error : "+err.Error()+"\nReason: "+detail)
+		return
+	}
+
+	// The delete is asynchronous; wait until the replication no longer exists
+	// (Get -> 404) so a dependent volume delete in the same `terraform destroy`
+	// does not fail with 400 "Cannot delete volume because replication is in use".
+	err = waitForReplicationGone(ctx, f.client, replicationId, volumeId)
+	if err != nil && !strings.Contains(err.Error(), "404") && !strings.Contains(strings.ToLower(err.Error()), "not found") {
+		response.Diagnostics.AddError(
+			"Error Delete Replication",
+			"Error waiting for replication to be deleted: "+err.Error())
 		return
 	}
 }
@@ -369,6 +414,22 @@ func waitForReplicationStatus(ctx context.Context, fileStorageClient *filestorag
 		}
 		response = replication
 		return replication, getCurrentStatus(params, replication), nil
+	})
+}
+
+// waitForReplicationGone polls the replication until the show call returns
+// 404/not found (fully deleted). It mirrors waitForLoadbalancerStatus' DELETED
+// handling: the Get error is surfaced so the caller can treat 404 as success.
+func waitForReplicationGone(ctx context.Context, fileStorageClient *filestorage.Client, replicationId string, volumeId string) error {
+	return client.WaitForStatus(ctx, nil, []string{}, []string{"DELETED"}, func() (interface{}, string, error) {
+		replication, err := fileStorageClient.GetVolumeReplication(ctx, replicationId, volumeId)
+		if err != nil {
+			if strings.Contains(err.Error(), "404") || strings.Contains(strings.ToLower(err.Error()), "not found") {
+				return "gone", "DELETED", nil
+			}
+			return nil, "", err
+		}
+		return replication, replication.ReplicationStatus, nil
 	})
 }
 

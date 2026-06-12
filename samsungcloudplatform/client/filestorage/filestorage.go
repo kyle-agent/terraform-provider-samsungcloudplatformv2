@@ -171,15 +171,23 @@ func (client *Client) UpdateVolumeAccessRule(ctx context.Context, id string, req
 func (client *Client) CreateReplication(ctx context.Context, request ReplicationResource) (*scpfilestorage.ReplicationCreateResponse, error) {
 	req := client.sdkClient.FilestorageV1VolumeReplicationAPIsAPI.CreateVolumeReplication(ctx)
 
-	req = req.ReplicationCreateRequest(scpfilestorage.ReplicationCreateRequest{
-		CifsPassword:         *scpfilestorage.NewNullableString(request.CifsPassword.ValueStringPointer()),
+	createReq := scpfilestorage.ReplicationCreateRequest{
 		Name:                 request.Name.ValueString(),
 		Region:               request.Region.ValueString(),
 		ReplicationFrequency: request.ReplicationFrequency.ValueString(),
 		VolumeId:             request.VolumeId.ValueString(),
 		ReplicationType:      request.ReplicationType.ValueString(),
-		BackupRetentionCount: *scpfilestorage.NewNullableInt32(request.BackupRetentionCount.ValueInt32Pointer()),
-	})
+	}
+	// NewNullableString/Int32 mark the field set even for a nil pointer, so an
+	// unconfigured value is serialized as an explicit JSON null (the vpc-peering
+	// description bug pattern). Only attach optionals the practitioner set.
+	if !request.CifsPassword.IsNull() && !request.CifsPassword.IsUnknown() {
+		createReq.CifsPassword = *scpfilestorage.NewNullableString(request.CifsPassword.ValueStringPointer())
+	}
+	if !request.BackupRetentionCount.IsNull() && !request.BackupRetentionCount.IsUnknown() {
+		createReq.BackupRetentionCount = *scpfilestorage.NewNullableInt32(request.BackupRetentionCount.ValueInt32Pointer())
+	}
+	req = req.ReplicationCreateRequest(createReq)
 
 	resp, _, err := req.Execute()
 	return resp, err
@@ -195,6 +203,26 @@ func (client *Client) UpdateVolumeReplication(ctx context.Context, id string, vo
 		ReplicationUpdateType: request.ReplicationUpdateType.ValueString(),
 		BackupRetentionCount:  *scpfilestorage.NewNullableInt32(request.BackupRetentionCount.ValueInt32Pointer()),
 	})
+
+	_, _, err := req.Execute()
+	return err
+}
+
+// PauseVolumeReplication sets the replication policy to "paused" via
+// PUT /v1/replications/{replication_id}?volume_id={volume_id} with body
+// {"replication_update_type": "policy", "replication_policy": "paused"}.
+// The platform requires the policy to be paused before the replication can be
+// deleted ("Replication Policy : paused > delete"), so Delete calls this first.
+// Only the two fields are attached so unset optionals are not serialized as
+// explicit JSON nulls (the vpc-peering description bug pattern).
+func (client *Client) PauseVolumeReplication(ctx context.Context, id string, volumeId string) error {
+	req := client.sdkClient.FilestorageV1VolumeReplicationAPIsAPI.SetVolumeReplication(ctx, id).VolumeId(volumeId)
+
+	updateReq := scpfilestorage.ReplicationUpdateRequest{
+		ReplicationUpdateType: "policy",
+	}
+	updateReq.SetReplicationPolicy(scpfilestorage.REPLICATIONUPDATESTATUSENUM_PAUSED)
+	req = req.ReplicationUpdateRequest(updateReq)
 
 	_, _, err := req.Execute()
 	return err

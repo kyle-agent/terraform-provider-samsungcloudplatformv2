@@ -66,26 +66,35 @@ func (client *Client) CreateTrail(ctx context.Context, request TrailResource) (*
 		})
 	}
 
-	req = req.TrailCreateRequestV1dot1(loggingaudit.TrailCreateRequestV1dot1{
+	createReq := loggingaudit.TrailCreateRequestV1dot1{
 		AccountId:           request.AccountId.ValueString(),
 		BucketName:          request.BucketName.ValueString(),
 		BucketRegion:        request.BucketRegion.ValueString(),
-		LogTypeTotalYn:      *loggingaudit.NewNullableString(request.LogTypeTotalYn.ValueStringPointer()),
-		LogVerificationYn:   *loggingaudit.NewNullableString(request.LogVerificationYn.ValueStringPointer()),
 		RegionNames:         ConvertStringListToInterfaceList(request.RegionNames),
-		RegionTotalYn:       *loggingaudit.NewNullableString(request.RegionTotalYn.ValueStringPointer()),
-		ResourceTypeTotalYn: *loggingaudit.NewNullableString(request.ResourceTypeTotalYn.ValueStringPointer()),
 		TagCreateRequests:   tags,
 		TargetLogTypes:      ConvertStringListToInterfaceList(request.TargetLogTypes),
 		TargetResourceTypes: ConvertStringListToInterfaceList(request.TargetResourceTypes),
 		TargetUsers:         ConvertStringListToInterfaceList(request.TargetUsers),
-		TrailDescription:    *loggingaudit.NewNullableString(request.TrailDescription.ValueStringPointer()),
 		TrailName:           request.TrailName.ValueString(),
 		TrailSaveType:       request.TrailSaveType.ValueString(),
-		UserTotalYn:         *loggingaudit.NewNullableString(request.UserTotalYn.ValueStringPointer()),
-		OrganizationTrailYn: *loggingaudit.NewNullableString(request.OrganizationTrailYn.ValueStringPointer()),
-		LogArchiveAccountId: *loggingaudit.NewNullableString(request.LogArchiveAccountId.ValueStringPointer()),
-	})
+	}
+	// NewNullableString marks the field set even for a nil pointer, so every
+	// unconfigured optional was serialized as an explicit JSON null (the
+	// vpc-peering description bug pattern). Only attach configured values.
+	setIf := func(dst *loggingaudit.NullableString, v basetypes.StringValue) {
+		if !v.IsNull() && !v.IsUnknown() {
+			*dst = *loggingaudit.NewNullableString(v.ValueStringPointer())
+		}
+	}
+	setIf(&createReq.LogTypeTotalYn, request.LogTypeTotalYn)
+	setIf(&createReq.LogVerificationYn, request.LogVerificationYn)
+	setIf(&createReq.RegionTotalYn, request.RegionTotalYn)
+	setIf(&createReq.ResourceTypeTotalYn, request.ResourceTypeTotalYn)
+	setIf(&createReq.TrailDescription, request.TrailDescription)
+	setIf(&createReq.UserTotalYn, request.UserTotalYn)
+	setIf(&createReq.OrganizationTrailYn, request.OrganizationTrailYn)
+	setIf(&createReq.LogArchiveAccountId, request.LogArchiveAccountId)
+	req = req.TrailCreateRequestV1dot1(createReq)
 
 	resp, _, err := req.Execute()
 	return resp, err
