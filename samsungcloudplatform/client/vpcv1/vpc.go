@@ -79,8 +79,17 @@ func (client *Client) CreateVpcPeering(ctx context.Context, request VpcPeeringRe
 		ApproverVpcId:        request.ApproverVpcId.ValueString(),
 		Name:                 request.Name.ValueString(),
 		RequesterVpcId:       request.RequesterVpcId.ValueString(),
-		Description:          *scpvpc.NewNullableString(request.Description.ValueStringPointer()),
 		Tags:                 tags,
+	}
+	// Issue #61: the peering create endpoint rejects an explicit
+	// "description": null with a misleading 400 ("no value given for required
+	// property approver_vpc_name ... Invalid error data"). NewNullableString
+	// marks the field set even for a nil pointer, so only attach Description
+	// when the practitioner actually configured one (probe run 27401023616:
+	// variant c/d/e with description:null -> 400 ValidationError "Input should
+	// be a valid string"; variant f without it parses fine).
+	if !request.Description.IsNull() && !request.Description.IsUnknown() {
+		createReq.Description = *scpvpc.NewNullableString(request.Description.ValueStringPointer())
 	}
 	// The API requires approver_vpc_name. Send it when known (derived in the
 	// resource Create from approver_vpc_id, or provided directly by the user).
