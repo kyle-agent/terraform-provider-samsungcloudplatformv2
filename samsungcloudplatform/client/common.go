@@ -63,12 +63,14 @@ func GetDetailFromError(err error) string {
 		if !ok {
 			continue
 		}
-		switch detail.(type) {
+		switch d := detail.(type) {
 		case string:
-			details = append(details, detail.(string))
+			details = append(details, d)
 		case []interface{}:
-			for _, d := range detail.([]interface{}) {
-				details = append(details, d.(string))
+			for _, item := range d {
+				if s, ok := item.(string); ok {
+					details = append(details, s)
+				}
 			}
 		}
 	}

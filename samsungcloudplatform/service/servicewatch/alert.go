@@ -506,6 +506,14 @@ func getDimensionKeys(ctx context.Context, dimensions types.List) ([][]string, d
 		}
 	}
 
+	// When the alert has no dimensions, return an empty outer slice so the
+	// metric search request omits the dimensions filter (sends []) instead of
+	// wrapping an empty key list ([[]]), which would not match a dimensionless
+	// metric and cause Create to fail with a 404.
+	if len(keys) == 0 {
+		return [][]string{}, nil
+	}
+
 	return [][]string{keys}, nil
 }
 

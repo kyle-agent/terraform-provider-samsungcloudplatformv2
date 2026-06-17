@@ -11,12 +11,14 @@ import (
 	"github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/common/region"
 	"github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/common/tag"
 	scpsdk "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/client"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
@@ -64,8 +66,11 @@ func (r *billingPlannedComputeResource) Schema(_ context.Context, _ resource.Sch
 				Optional:    true,
 			},
 			common.ToSnakeCase("ContractType"): schema.StringAttribute{
-				Description: "ContractType",
+				Description: "Contract period code. Allowed API enum values: 01 (1-year), 03 (3-year), 05 (5-year).",
 				Optional:    true,
+				Validators: []validator.String{
+					stringvalidator.OneOf("01", "03", "05"),
+				},
 			},
 			common.ToSnakeCase("OsType"): schema.StringAttribute{
 				Description: "OsType",

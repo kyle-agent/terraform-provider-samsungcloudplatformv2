@@ -126,8 +126,8 @@ type EventPolicyResource struct { //	/v2/event-policies API POST
 	ObjectType         types.String `tfsdk:"object_type"`
 	ObjectTypeName     types.String `tfsdk:"object_type_name"`
 	//EventThreshold        EventThreshold          `tfsdk:"event_threshold"`
-	EventPolicy           EventPolicy             `tfsdk:"event_policy"`
-	NotificationRecipient []NotificationRecipient `tfsdk:"notification_recipient"`
+	EventPolicy           EventPolicy `tfsdk:"event_policy"`
+	NotificationRecipient types.List  `tfsdk:"notification_recipient"`
 }
 
 // ---------- Event & Event Policy Response ------------ //
@@ -619,6 +619,23 @@ type NotificationRecipient struct {
 type NotificationMethod struct {
 	EventLevel types.String   `tfsdk:"event_level"`
 	SendMethod []types.String `tfsdk:"send_method"`
+}
+
+func (m NotificationMethod) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"event_level": types.StringType,
+		"send_method": types.ListType{ElemType: types.StringType},
+	}
+}
+
+func (m NotificationRecipient) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"recipient_type":         types.StringType,
+		"recipient_key":          types.StringType,
+		"notification_method":    types.ListType{ElemType: types.ObjectType{AttrTypes: NotificationMethod{}.AttributeTypes()}},
+		"recipient_target_table": types.StringType,
+		"rcv_user_name":          types.StringType,
+	}
 }
 
 // ListMetrics
