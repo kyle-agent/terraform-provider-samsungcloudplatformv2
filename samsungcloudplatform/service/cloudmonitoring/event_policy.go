@@ -324,6 +324,44 @@ func (r *cloudMonitoringEventPolicyResource) Schema(ctx context.Context, request
 			common.ToSnakeCase("NotificationRecipient"): schema.ListNestedAttribute{
 				Description: "NotificationRecipient",
 				Optional:    true,
+				Computed:    true,
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						common.ToSnakeCase("RecipientType"): schema.StringAttribute{
+							Description: "RecipientType",
+							Optional:    true,
+						},
+						common.ToSnakeCase("RecipientKey"): schema.StringAttribute{
+							Description: "RecipientKey",
+							Optional:    true,
+						},
+						common.ToSnakeCase("RecipientTargetTable"): schema.StringAttribute{
+							Description: "RecipientTargetTable",
+							Optional:    true,
+						},
+						common.ToSnakeCase("RcvUserName"): schema.StringAttribute{
+							Description: "RcvUserName",
+							Optional:    true,
+						},
+						common.ToSnakeCase("NotificationMethod"): schema.ListNestedAttribute{
+							Description: "NotificationMethod",
+							Optional:    true,
+							NestedObject: schema.NestedAttributeObject{
+								Attributes: map[string]schema.Attribute{
+									common.ToSnakeCase("EventLevel"): schema.StringAttribute{
+										Description: "EventLevel",
+										Optional:    true,
+									},
+									common.ToSnakeCase("SendMethod"): schema.ListAttribute{
+										ElementType: types.StringType,
+										Description: "SendMethod",
+										Optional:    true,
+									},
+								},
+							},
+						},
+					},
+				},
 			},
 		},
 	}
@@ -534,7 +572,7 @@ func (r *cloudMonitoringEventPolicyResource) MapGetResponseToState(ctx context.C
 		ResourceType:      types.StringValue(xResourceType),
 		ProductResourceId: types.StringValue(productResourceId),
 		//EventThreshold:        eventThreshold,
-		NotificationRecipient: nil,
+		NotificationRecipient: types.ListNull(types.ObjectType{AttrTypes: cloudmonitoring.NotificationRecipient{}.AttributeTypes()}),
 		EventLevel:            types.StringValue(resp.GetEventLevel()),
 		DisableYn:             types.StringValue("N"),
 		EventMessagePrefix:    types.StringValue(resp.GetEventMessagePrefix()),
