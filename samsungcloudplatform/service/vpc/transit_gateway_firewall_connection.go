@@ -169,37 +169,24 @@ func (r *tgwFirewallConnectionResource) Create(ctx context.Context, req resource
 		return
 	}
 
-	// Map API response to object
+	// Map API response to object — mirror Read()'s mapping exactly (every nullable
+	// field via *PointerValue) so Create and refresh produce identically-typed
+	// state. The earlier conditional setters left some attrs at their Go zero
+	// value, and the ObjectValueFrom error below was swallowed, surfacing only as
+	// an opaque "Value Conversion Error" at apply.
 	tgw := vpcv1d2.TransitGateway{
 		Id:            types.StringValue(data.TransitGateway.Id),
+		Description:   types.StringPointerValue(data.TransitGateway.Description.Get()),
 		Name:          types.StringValue(data.TransitGateway.Name),
 		AccountId:     types.StringValue(data.TransitGateway.AccountId),
+		Bandwidth:     types.Int32PointerValue(data.TransitGateway.Bandwidth.Get()),
 		CreatedAt:     types.StringValue(data.TransitGateway.CreatedAt.Format(time.RFC3339)),
 		CreatedBy:     types.StringValue(data.TransitGateway.CreatedBy),
+		FirewallIds:   types.StringPointerValue(data.TransitGateway.FirewallIds.Get()),
 		ModifiedAt:    types.StringValue(data.TransitGateway.ModifiedAt.Format(time.RFC3339)),
 		ModifiedBy:    types.StringValue(data.TransitGateway.ModifiedBy),
 		State:         types.StringValue(string(data.TransitGateway.State)),
 		UplinkEnabled: types.BoolPointerValue(data.TransitGateway.UplinkEnabled),
-	}
-	if data.TransitGateway.Description.IsSet() {
-		if val := data.TransitGateway.Description.Get(); val != nil {
-			tgw.Description = types.StringValue(*val)
-		}
-	}
-	if data.TransitGateway.FirewallIds.IsSet() {
-		if val := data.TransitGateway.FirewallIds.Get(); val != nil {
-			tgw.FirewallIds = types.StringValue(*val)
-		}
-	}
-	if data.TransitGateway.Bandwidth.IsSet() {
-		if val := data.TransitGateway.Bandwidth.Get(); val != nil {
-			tgw.Bandwidth = types.Int32PointerValue(val)
-		}
-	}
-	if data.TransitGateway.FirewallConnectionState.IsSet() {
-		if desc := data.TransitGateway.FirewallConnectionState.Get(); desc != nil {
-			tgw.FirewallConnectionState = types.StringValue(string(*desc))
-		}
 	}
 
 	// Firewall connection states (SDK TransitGatewayFirewallConnectionState):
@@ -224,7 +211,14 @@ func (r *tgwFirewallConnectionResource) Create(ctx context.Context, req resource
 	}
 
 	tgw.FirewallConnectionState = types.StringValue("ACTIVE")
-	tgwObjectValue, _ := types.ObjectValueFrom(ctx, tgw.AttributeTypes(), tgw)
+	// Surface (don't swallow) the conversion diagnostics — a swallowed error here
+	// is what produced the opaque "Value Conversion Error: Expected framework type
+	// from provider logic" at apply with no detail.
+	tgwObjectValue, objDiags := types.ObjectValueFrom(ctx, tgw.AttributeTypes(), tgw)
+	resp.Diagnostics.Append(objDiags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	plan.TransitGateway = tgwObjectValue
 
 	// Set state
