@@ -3,6 +3,8 @@ package dns
 import (
 	"context"
 	"fmt"
+	"strings"
+
 	"github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/client"
 	"github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/client/dns"
 
@@ -340,6 +342,19 @@ func (r *dnsRecordResource) Delete(ctx context.Context, req resource.DeleteReque
 		return
 	}
 
+	// DeleteRecord returns 202 Accepted and removes the record asynchronously.
+	// Block until the Show 404s so the parent hosted zone Delete that follows in
+	// the dependency graph does not 409 on a still-present record (which cascades
+	// to the private DNS delete and leaks the bootstrap VPC). 404 is terminal.
+	err = waitForRecordGone(ctx, r.client, state.HostedZoneId.ValueString(), state.Id.ValueString())
+	if err != nil && !strings.Contains(err.Error(), "404") {
+		resp.Diagnostics.AddError(
+			"Error deleting record",
+			"Error waiting for record to become deleted: "+err.Error(),
+		)
+		return
+	}
+
 	recordModel := convertRecordDetail(convertRecordCreateResponseToRecord(*data))
 
 	recordObjectValue, diags := types.ObjectValueFrom(ctx, recordModel.AttributeTypes(), recordModel)
@@ -358,6 +373,24 @@ func waitForRecordStatus(ctx context.Context, recordClient *dns.Client, hostedZo
 		info, err := recordClient.GetRecord(ctx, hostedZoneId, recordId)
 		if err != nil {
 			return nil, "", err
+		}
+		return info, *info.Status.Get(), nil
+	})
+}
+
+// waitForRecordGone polls the record Show until it 404s (the record has been
+// fully removed). The refresh func surfaces that 404 as the returned error,
+// which the Delete handler tolerates; DELETED is never actually observed because
+// the Show stops returning the record once it is gone. It is nil-safe (does not
+// dereference the response on error) unlike waitForRecordStatus.
+func waitForRecordGone(ctx context.Context, recordClient *dns.Client, hostedZoneId string, recordId string) error {
+	return client.WaitForStatus(ctx, nil, []string{"ACTIVE", "DELETING"}, []string{"DELETED"}, func() (interface{}, string, error) {
+		info, err := recordClient.GetRecord(ctx, hostedZoneId, recordId)
+		if err != nil {
+			return nil, "", err
+		}
+		if info == nil || info.Status.Get() == nil {
+			return nil, "", nil
 		}
 		return info, *info.Status.Get(), nil
 	})
