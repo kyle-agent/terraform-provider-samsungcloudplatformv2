@@ -10,6 +10,7 @@ import (
 	"github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/common"
 	scpsdk "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/client"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
@@ -205,8 +206,14 @@ func (r *tgwFirewallConnectionResource) Create(ctx context.Context, req resource
 	// ATTACHING, ACTIVE, DETACHING, INACTIVE, DELETED, ERROR. Listing the
 	// transitional state in Pending lets StateChangeConf short-circuit on a
 	// parked/ERROR state instead of polling for the full timeout (issue #76).
+	// The connection is created in ATTACHING and should converge to ACTIVE. Some
+	// TGW firewall products report INACTIVE briefly right after the POST before
+	// transitioning; treat INACTIVE as transitional (pending) rather than an
+	// unexpected-state error so the wait can observe the eventual ACTIVE. If it
+	// never leaves INACTIVE, the bounded 12-min timeout fails fast (rather than
+	// the old behaviour: error immediately on the unexpected INACTIVE state).
 	err = waitForFirewallConnectionState(ctx, r.clientv1d2, plan.TransitGatewayId.ValueString(),
-		[]string{"ATTACHING"},
+		[]string{"ATTACHING", "INACTIVE"},
 		[]string{common.ActiveState})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -326,12 +333,28 @@ func (r *tgwFirewallConnectionResource) Delete(ctx context.Context, req resource
 	resp.State = readResp.State
 }
 
+// waitForFirewallConnectionState polls the TGW's firewall_connection_state until
+// it reaches a target state. Unlike the shared client.WaitForStatus (120-min
+// default), this uses a bounded 12-minute timeout: a firewall connection that is
+// going to attach does so quickly, so an unmapped/parked state should fail fast
+// rather than hang a terraform apply for two hours.
 func waitForFirewallConnectionState(ctx context.Context, r *vpcv1d2.Client, transitGatewayId string, pendingStates []string, targetStates []string) error {
-	return client.WaitForStatus(ctx, nil, pendingStates, targetStates, func() (interface{}, string, error) {
-		info, err := r.GetTransitGatewayInfo(ctx, transitGatewayId)
-		if err != nil {
-			return nil, "", err
-		}
-		return info, string(info.TransitGateway.GetFirewallConnectionState()), nil
-	})
+	stateConf := &retry.StateChangeConf{
+		Pending: pendingStates,
+		Target:  targetStates,
+		Refresh: func() (interface{}, string, error) {
+			info, err := r.GetTransitGatewayInfo(ctx, transitGatewayId)
+			if err != nil {
+				return nil, "", err
+			}
+			return info, string(info.TransitGateway.GetFirewallConnectionState()), nil
+		},
+		Timeout:    12 * time.Minute,
+		Delay:      2 * time.Second,
+		MinTimeout: 3 * time.Second,
+	}
+	if _, err := stateConf.WaitForStateContext(ctx); err != nil {
+		return fmt.Errorf("Error waiting for firewall connection state: %s", err)
+	}
+	return nil
 }

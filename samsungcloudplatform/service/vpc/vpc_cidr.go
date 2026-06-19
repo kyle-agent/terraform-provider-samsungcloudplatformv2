@@ -355,6 +355,22 @@ func (r *VpcCidrResource) Delete(ctx context.Context, req resource.DeleteRequest
 
 	removeStatus, err := r.client.RemoveVpcCidr(ctx, vpcId, cidrId)
 	if err != nil {
+		// The SCP API exposes only POST /v1/vpcs/{id}/cidrs (add a secondary
+		// CIDR); there is no mapped DELETE for an individual secondary CIDR, so
+		// the gateway rejects the removal with 403 ("Action definition is not
+		// found" / "You do not have permission to Action"). A secondary CIDR is
+		// not independently removable — it is reclaimed when the VPC itself is
+		// deleted. Treat that 403 as a graceful, state-only delete (with a
+		// warning) so `terraform destroy` of the enclosing config can complete
+		// instead of wedging on a platform limitation. Genuine errors (auth,
+		// 5xx, etc.) still fail loudly.
+		if removeStatus == 403 {
+			resp.Diagnostics.AddWarning(
+				"VPC secondary CIDR removal not supported by the platform",
+				fmt.Sprintf("The secondary CIDR %s on VPC %s cannot be removed individually: the SCP API has no delete endpoint for a secondary CIDR (it is reclaimed when the VPC is deleted). Removing it from Terraform state only.", targetCidr, vpcId),
+			)
+			return
+		}
 		detail := client.GetDetailFromError(err)
 		resp.Diagnostics.AddError(
 			"Failed to remove VPC CIDR",
