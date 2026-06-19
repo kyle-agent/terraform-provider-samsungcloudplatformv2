@@ -3,6 +3,8 @@ package dns
 import (
 	"context"
 	"fmt"
+	"strings"
+
 	"github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/client"
 	"github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/client/dns"
 
@@ -346,13 +348,27 @@ func (r *dnsPrivateDnsResource) Delete(ctx context.Context, req resource.DeleteR
 		return
 	}
 
-	// Delete existing Gslb
+	// Delete existing Private Dns
 	err := r.client.DeletePrivateDns(ctx, state.Id.ValueString())
 	if err != nil {
 		detail := client.GetDetailFromError(err)
 		resp.Diagnostics.AddError(
 			"Error Deleting Private Dns",
 			"Could not delete Private Dns, unexpected error: "+err.Error()+"\nReason: "+detail,
+		)
+		return
+	}
+
+	// DeletePrivateDns returns 202 Accepted; the platform tears the zone down
+	// asynchronously and only then detaches it from its connected VPC(s). Block
+	// until the Show 404s (the zone is truly gone, hence unbound) so a downstream
+	// VPC destroy does not race the detach and 409 "Cannot terminate due to
+	// associated resources", leaking the VPC. A 404 is the expected terminal state.
+	err = waitForPrivateDnsStatus(ctx, r.client, state.Id.ValueString(), []string{"ACTIVE", "DELETING"}, []string{"DELETED"})
+	if err != nil && !strings.Contains(err.Error(), "404") {
+		resp.Diagnostics.AddError(
+			"Error deleting private dns",
+			"Error waiting for private dns to become deleted: "+err.Error(),
 		)
 		return
 	}

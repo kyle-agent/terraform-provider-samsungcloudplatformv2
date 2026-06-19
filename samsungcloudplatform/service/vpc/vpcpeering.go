@@ -64,9 +64,9 @@ func (r *vpcPeeringResource) Schema(_ context.Context, _ resource.SchemaRequest,
 				Required:    true,
 			},
 			common.ToSnakeCase("ApproverVpcName"): schema.StringAttribute{
-				Description: "Approver VPC Name. The API requires this value; when omitted " +
-					"the provider derives it from approver_vpc_id.",
-				Optional: true,
+				Description: "Approver VPC Name. Computed: the create API derives it " +
+					"from approver_vpc_id and returns it in the response (it is not a " +
+					"create request field).",
 				Computed: true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
@@ -204,34 +204,24 @@ func (r *vpcPeeringResource) Create(ctx context.Context, req resource.CreateRequ
 		return
 	}
 
-	// The API requires approver_vpc_name. If the user did not supply it,
-	// derive it from approver_vpc_id via a VPC lookup.
-	userProvidedName := !plan.ApproverVpcName.IsNull() && !plan.ApproverVpcName.IsUnknown() && plan.ApproverVpcName.ValueString() != ""
-	if !userProvidedName {
-		vpcData, err := r.clients.Vpc.GetVpc(ctx, plan.ApproverVpcId.ValueString())
-		if err != nil {
-			detail := client.GetDetailFromError(err)
-			resp.Diagnostics.AddError(
-				"Error creating vpc peering",
-				"Could not resolve approver_vpc_name from approver_vpc_id "+plan.ApproverVpcId.ValueString()+": "+err.Error()+"\nReason: "+detail,
-			)
-			return
-		}
-		plan.ApproverVpcName = types.StringValue(vpcData.Vpc.Name)
-	}
-
-	// Guard: the API rejects the request with "no value given for required
-	// property approver_vpc_name" if this is empty. Fail fast with a clear
-	// message rather than sending an absent/empty field.
-	if plan.ApproverVpcName.IsNull() || plan.ApproverVpcName.IsUnknown() || plan.ApproverVpcName.ValueString() == "" {
-		resp.Diagnostics.AddError(
-			"Error creating vpc peering",
-			"approver_vpc_name is required by the API but could not be determined. "+
-				"Provide approver_vpc_name explicitly, or ensure approver_vpc_id ("+
-				plan.ApproverVpcId.ValueString()+") refers to an existing VPC with a name.",
-		)
-		return
-	}
+	// Issue #61: the documented VpcPeeringCreateRequest schema (api_docs.json,
+	// /v1/vpc-peerings, supported version vpc 1.2) has exactly six fields and
+	// approver_vpc_name is NOT one of them. The required server-side fields are
+	// approver_vpc_account_id, approver_vpc_id, name and requester_vpc_id;
+	// description and tags are optional. approver_vpc_name appears ONLY in the
+	// VpcPeeringShowResponse. The api-test-automation suite gets a 202 sending
+	// exactly {requester_vpc_id, approver_vpc_id, approver_vpc_account_id, name,
+	// description, tags:[]} with NO approver_vpc_name.
+	//
+	// The previous auto-resolve-from-approver_vpc_id logic forced an
+	// approver_vpc_name into the request body. A synthetic/derived name that did
+	// not match the real approver VPC produced the misleading 400
+	// "no value given for required property approver_vpc_name". The correct fix
+	// is to NOT send approver_vpc_name at all and let the API derive it from
+	// approver_vpc_id (the client wrapper already omits the field when it is
+	// unset). We therefore clear any plan-supplied approver_vpc_name before the
+	// create call; the real value is read back from the create response below.
+	plan.ApproverVpcName = types.StringNull()
 
 	// Create new vpc
 	data, err := r.client.CreateVpcPeering(ctx, plan)

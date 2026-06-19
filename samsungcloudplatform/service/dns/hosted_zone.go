@@ -3,6 +3,8 @@ package dns
 import (
 	"context"
 	"fmt"
+	"strings"
+
 	"github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/client"
 	"github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/client/dns"
 
@@ -324,6 +326,19 @@ func (r *dnsHostedZoneResource) Delete(ctx context.Context, req resource.DeleteR
 		resp.Diagnostics.AddError(
 			"Error Deleting HostedZone",
 			"Could not delete HostedZone, unexpected error: "+err.Error()+"\nReason: "+detail,
+		)
+		return
+	}
+
+	// DeleteHostedZone returns 202 Accepted and tears down asynchronously. Block
+	// until the Show 404s so the parent private DNS Delete that follows in the
+	// dependency graph does not fire while this zone is still attached (which 409s
+	// the parent delete and ultimately leaks the bootstrap VPC). 404 is terminal.
+	err = waitForHostedZoneStatus(ctx, r.client, state.Id.ValueString(), []string{"ACTIVE", "DELETING"}, []string{"DELETED"})
+	if err != nil && !strings.Contains(err.Error(), "404") {
+		resp.Diagnostics.AddError(
+			"Error deleting hosted zone",
+			"Error waiting for hosted zone to become deleted: "+err.Error(),
 		)
 		return
 	}

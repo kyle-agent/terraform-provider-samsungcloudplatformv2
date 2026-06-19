@@ -9,8 +9,10 @@ import (
 	"github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/client/iam"
 	"github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/common/tag"
 	scpsdk "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/client"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -41,10 +43,20 @@ func (r *iamUserResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 	resp.Schema = schema.Schema{
 		Description: "User.",
 		Attributes: map[string]schema.Attribute{
+			// account_id is the {account_id} PATH parameter of
+			// POST /v1/accounts/{account_id}/users (server-side required). It was
+			// previously Optional with no validator, so an unset value sent an empty
+			// path segment (".../accounts//users"), producing a malformed signed URL
+			// that the gateway rejected as a misleading "401 [HMAC] HMAC valid fail".
+			// It is now Required with a non-empty validator so the user gets a clear
+			// plan-time error instead of an opaque auth failure. See fork issue #74.
 			"account_id": schema.StringAttribute{
-				Optional:            true,
-				Description:         "Account ID",
-				MarkdownDescription: "Account ID",
+				Required:            true,
+				Description:         "Account ID (required: the owning account in which to create the user)",
+				MarkdownDescription: "Account ID (required: the owning account in which to create the user)",
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+				},
 			},
 			"description": schema.StringAttribute{
 				Optional:            true,
@@ -541,6 +553,27 @@ func (r *iamUserResource) Create(ctx context.Context, req resource.CreateRequest
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+
+	// account_id is the {account_id} path parameter of CreateIAMUser. If it is
+	// empty the request targets ".../accounts//users", which is signed as a
+	// malformed URL and surfaces as a misleading "401 [HMAC] HMAC valid fail"
+	// (fork issue #74). Default it to the caller's own account id when omitted,
+	// and fail with an actionable error rather than an opaque 401 if it cannot
+	// be resolved.
+	if plan.AccountId.ValueString() == "" {
+		accountId, acctErr := r.client.GetAccountId()
+		if acctErr != nil || accountId == "" {
+			resp.Diagnostics.AddError(
+				"Error creating user",
+				"account_id is required to create an IAM user (it is the {account_id} path "+
+					"segment of POST /v1/accounts/{account_id}/users). It was empty and the "+
+					"caller's own account id could not be resolved automatically. Set "+
+					"`account_id` on the samsungcloudplatformv2_iam_user resource.",
+			)
+			return
+		}
+		plan.AccountId = types.StringValue(accountId)
 	}
 
 	data, err := r.client.CreateUser(ctx, plan)

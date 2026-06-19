@@ -194,31 +194,53 @@ func (r *vpcTgwRuleResource) Create(ctx context.Context, req resource.CreateRequ
 
 	// Create new routing rule
 	data, err := r.client.CreateTgwRule(ctx, plan)
+
+	// The TGW-rule create endpoint returns 202 with a response body that omits the
+	// server-set audit fields (created_at/created_by/modified_at/modified_by) — see
+	// the documented response example. The SDK response model nevertheless lists
+	// created_at in its requiredProperties, so decoding the (successful) 202 fails
+	// with "no value given for required property created_at". The rule IS created
+	// server-side; recover by listing the rule (the list response DOES include the
+	// audit fields, so it decodes cleanly) and matching the one we just asked for.
+	var ruleId string
 	if err != nil {
-		detail := client.GetDetailFromError(err)
-		resp.Diagnostics.AddError(
-			"Error creating transit gateway routing rule",
-			"Could not create routing rule, unexpected error: "+err.Error()+"\nReason: "+detail,
-		)
-		return
+		if !strings.Contains(err.Error(), "created_at") {
+			detail := client.GetDetailFromError(err)
+			resp.Diagnostics.AddError(
+				"Error creating transit gateway routing rule",
+				"Could not create routing rule, unexpected error: "+err.Error()+"\nReason: "+detail,
+			)
+			return
+		}
+		ruleId, err = findRoutingRuleId(ctx, r.client,
+			plan.TransitGatewayId.ValueString(),
+			plan.DestinationCidr.ValueString(),
+			plan.DestinationType.ValueString(),
+			plan.TgwConnectionVpcId.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error creating transit gateway routing rule",
+				"Routing rule create succeeded (202) but the created rule could not be located: "+err.Error(),
+			)
+			return
+		}
+		plan.Id = types.StringValue(ruleId)
+	} else {
+		routingRule := data.TransitGatewayRule
+		ruleId = routingRule.Id
+		// Map response body to schema and populate Computed attribute values
+		plan.Id = types.StringValue(routingRule.Id)
+		routingRuleModel := createRoutingRuleModel(&routingRule)
+		routingRuleObjectValue, _ := types.ObjectValueFrom(ctx, routingRuleModel.AttributeTypes(), routingRuleModel)
+		plan.RoutingRule = routingRuleObjectValue
 	}
-
-	routingRule := data.TransitGatewayRule
-	// Map response body to schema and populate Computed attribute values
-	plan.Id = types.StringValue(routingRule.Id)
-	diags = resp.State.Set(ctx, plan)
-
-	routingRuleModel := createRoutingRuleModel(&routingRule)
-
-	routingRuleObjectValue, diags := types.ObjectValueFrom(ctx, routingRuleModel.AttributeTypes(), routingRuleModel)
-	plan.RoutingRule = routingRuleObjectValue
 
 	// Set state to fully populated data
 	diags = resp.State.Set(ctx, plan)
 
 	// Non-empty Pending lets StateChangeConf short-circuit on a parked/ERROR state
 	// instead of polling for the full timeout (issue #76).
-	err = waitForRoutingRuleStatus(ctx, r.client, plan.TransitGatewayId.ValueString(), data.TransitGatewayRule.Id,
+	err = waitForRoutingRuleStatus(ctx, r.client, plan.TransitGatewayId.ValueString(), ruleId,
 		[]string{common.CreatingState},
 		[]string{common.ActiveState})
 	if err != nil {
@@ -330,6 +352,31 @@ func createRoutingRuleModel(data *scpvpc.TransitGatewayRule) vpc.RoutingRule {
 		TgwConnectionVpcId:      types.StringPointerValue(data.TgwConnectionVpcId.Get()),
 		TgwConnectionVpcName:    types.StringPointerValue(data.TgwConnectionVpcName.Get()),
 	}
+}
+
+// findRoutingRuleId lists the rules on a TGW and returns the id of the rule that
+// matches the just-created (destination_cidr, destination_type, tgw_connection_vpc_id)
+// tuple. Used to recover the rule id when the create-202 response fails to decode
+// because it omits the server-set created_at field.
+func findRoutingRuleId(ctx context.Context, routingRuleClient *vpc.Client, transitGatewayId, destinationCidr, destinationType, tgwConnectionVpcId string) (string, error) {
+	data, err := routingRuleClient.GetRoutingRule(ctx, transitGatewayId, "")
+	if err != nil {
+		return "", err
+	}
+	for _, rule := range data.TransitGatewayRules {
+		if rule.DestinationCidr != destinationCidr {
+			continue
+		}
+		if string(rule.DestinationType) != destinationType {
+			continue
+		}
+		if connId := rule.TgwConnectionVpcId.Get(); connId != nil && *connId != tgwConnectionVpcId {
+			continue
+		}
+		return rule.Id, nil
+	}
+	return "", fmt.Errorf("no routing rule found for destination_cidr=%s destination_type=%s tgw_connection_vpc_id=%s on transit gateway %s",
+		destinationCidr, destinationType, tgwConnectionVpcId, transitGatewayId)
 }
 
 func waitForRoutingRuleStatus(ctx context.Context, routingRuleClient *vpc.Client, transitGatewayId string, routingRuleId string, pendingStates []string, targetStates []string) error {
