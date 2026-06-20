@@ -11,6 +11,7 @@ import (
 	"github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/common"
 	"github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/common/tag"
 	scpsdk "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/client"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
@@ -19,8 +20,9 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource              = &vpcPrivateNatResource{}
-	_ resource.ResourceWithConfigure = &vpcPrivateNatResource{}
+	_ resource.Resource                = &vpcPrivateNatResource{}
+	_ resource.ResourceWithConfigure   = &vpcPrivateNatResource{}
+	_ resource.ResourceWithImportState = &vpcPrivateNatResource{}
 )
 
 // NewVpcPrivateNatResource is a helper function to simplify the provider implementation.
@@ -393,4 +395,10 @@ func waitForPrivateNatStatus(ctx context.Context, vpcClient *vpcv1d2.Client, id 
 		}
 		return info, string(info.PrivateNat.State), nil
 	})
+}
+
+// ImportState adopts an existing resource via `terraform import <addr> <id>` using its
+// opaque id; Read then refreshes the remaining state. (#81)
+func (r *vpcPrivateNatResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }

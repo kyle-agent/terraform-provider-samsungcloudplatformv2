@@ -12,6 +12,7 @@ import (
 	virtualserverutil "github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/common/virtualserver"
 	scpsdk "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/client"
 	scpgslb "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/library/gslb/1.1"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -23,8 +24,9 @@ const reasonPrefix = "\nReason: "
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource              = &gslbGslbResource{}
-	_ resource.ResourceWithConfigure = &gslbGslbResource{}
+	_ resource.Resource                = &gslbGslbResource{}
+	_ resource.ResourceWithConfigure   = &gslbGslbResource{}
+	_ resource.ResourceWithImportState = &gslbGslbResource{}
 )
 
 // NewResourceManagerResourceGroupResource is a helper function to simplify the provider implementation.
@@ -318,7 +320,7 @@ func (r *gslbGslbResource) Create(ctx context.Context, req resource.CreateReques
 		detail := client.GetDetailFromError(err)
 		resp.Diagnostics.AddError(
 			"Error creating Gslb",
-			"Could not create Gslb, unexpected error: "+err.Error() + reasonPrefix + detail,
+			"Could not create Gslb, unexpected error: "+err.Error()+reasonPrefix+detail,
 		)
 		return
 	}
@@ -364,7 +366,7 @@ func (r *gslbGslbResource) Read(ctx context.Context, req resource.ReadRequest, r
 		detail := client.GetDetailFromError(err)
 		resp.Diagnostics.AddError(
 			"Error reading Gslb",
-			"Could not read Gslb, unexpected error: "+err.Error() + reasonPrefix + detail,
+			"Could not read Gslb, unexpected error: "+err.Error()+reasonPrefix+detail,
 		)
 		return
 	}
@@ -409,7 +411,7 @@ func (r *gslbGslbResource) Update(ctx context.Context, req resource.UpdateReques
 			detail := client.GetDetailFromError(err)
 			resp.Diagnostics.AddError(
 				"Error updating Gslb",
-				"Could not update Gslb, unexpected error: "+err.Error() + reasonPrefix + detail,
+				"Could not update Gslb, unexpected error: "+err.Error()+reasonPrefix+detail,
 			)
 			return
 		}
@@ -421,7 +423,7 @@ func (r *gslbGslbResource) Update(ctx context.Context, req resource.UpdateReques
 			detail := client.GetDetailFromError(err)
 			resp.Diagnostics.AddError(
 				"Error updating Gslb",
-				"Could not update Gslb, unexpected error: "+err.Error() + reasonPrefix + detail,
+				"Could not update Gslb, unexpected error: "+err.Error()+reasonPrefix+detail,
 			)
 			return
 		}
@@ -433,7 +435,7 @@ func (r *gslbGslbResource) Update(ctx context.Context, req resource.UpdateReques
 			detail := client.GetDetailFromError(err)
 			resp.Diagnostics.AddError(
 				"Error updating Gslb",
-				"Could not update Gslb, unexpected error: "+err.Error() + reasonPrefix + detail,
+				"Could not update Gslb, unexpected error: "+err.Error()+reasonPrefix+detail,
 			)
 			return
 		}
@@ -453,7 +455,7 @@ func (r *gslbGslbResource) Update(ctx context.Context, req resource.UpdateReques
 		detail := client.GetDetailFromError(err)
 		resp.Diagnostics.AddError(
 			"Error reading Gslb",
-			"Could not read Gslb, unexpected error: "+err.Error() + reasonPrefix + detail,
+			"Could not read Gslb, unexpected error: "+err.Error()+reasonPrefix+detail,
 		)
 		return
 	}
@@ -487,7 +489,7 @@ func (r *gslbGslbResource) Delete(ctx context.Context, req resource.DeleteReques
 		detail := client.GetDetailFromError(err)
 		resp.Diagnostics.AddError(
 			"Error Deleting Gslb",
-			"Could not delete Gslb, unexpected error: "+err.Error() + reasonPrefix + detail,
+			"Could not delete Gslb, unexpected error: "+err.Error()+reasonPrefix+detail,
 		)
 		return
 	}
@@ -634,4 +636,10 @@ func waitForGslbStatus(ctx context.Context, gslbClient *gslb.Client, id string, 
 		}
 		return info, info.Gslb.State, nil
 	})
+}
+
+// ImportState adopts an existing resource via `terraform import <addr> <id>` using its
+// opaque id; Read then refreshes the remaining state. (#81)
+func (r *gslbGslbResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }

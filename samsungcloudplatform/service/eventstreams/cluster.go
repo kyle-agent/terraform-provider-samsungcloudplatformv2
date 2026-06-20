@@ -15,6 +15,7 @@ import (
 	scpEventstreams "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/library/eventstreams/1.1"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -24,8 +25,9 @@ import (
 )
 
 var (
-	_ resource.Resource              = &eventstreamsClusterResource{}
-	_ resource.ResourceWithConfigure = &eventstreamsClusterResource{}
+	_ resource.Resource                = &eventstreamsClusterResource{}
+	_ resource.ResourceWithConfigure   = &eventstreamsClusterResource{}
+	_ resource.ResourceWithImportState = &eventstreamsClusterResource{}
 )
 
 func NewEventstreamsClusterResource() resource.Resource {
@@ -981,4 +983,10 @@ func isEqualInstanceGroup(actual scpEventstreams.InstanceGroupResponse, expect e
 
 	return equal
 
+}
+
+// ImportState adopts an existing resource via `terraform import <addr> <id>` using its
+// opaque id; Read then refreshes the remaining state. (#81)
+func (r *eventstreamsClusterResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }

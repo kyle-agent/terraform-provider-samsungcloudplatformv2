@@ -10,6 +10,7 @@ import (
 	"github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/common/tag"
 	scpsdk "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/client"
 	scploadbalancer "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/library/loadbalancer/1.3"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -20,8 +21,9 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource              = &loadbalancerLbHealthCheckResource{}
-	_ resource.ResourceWithConfigure = &loadbalancerLbHealthCheckResource{}
+	_ resource.Resource                = &loadbalancerLbHealthCheckResource{}
+	_ resource.ResourceWithConfigure   = &loadbalancerLbHealthCheckResource{}
+	_ resource.ResourceWithImportState = &loadbalancerLbHealthCheckResource{}
 )
 
 // NewLoadBalancerLbHealthCheckResource is a helper function to simplify the provider implementation.
@@ -391,4 +393,10 @@ func createLbHealthCheckModel(data *scploadbalancer.LbHealthCheckShowResponse) l
 		CreatedBy:           types.StringValue(lbHealthCheck.CreatedBy),
 		CreatedAt:           types.StringValue(lbHealthCheck.CreatedAt.Format(time.RFC3339)),
 	}
+}
+
+// ImportState adopts an existing resource via `terraform import <addr> <id>` using its
+// opaque id; Read then refreshes the remaining state. (#81)
+func (r *loadbalancerLbHealthCheckResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }

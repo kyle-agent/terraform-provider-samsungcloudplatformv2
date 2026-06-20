@@ -13,6 +13,7 @@ import (
 	virtualserverutil "github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/common/virtualserver"
 	scpsdk "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/client"
 	scpvirtualserver "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/library/virtualserver/1.3"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -24,8 +25,9 @@ const reasonPrefix = "\nReason: "
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource              = &virtualServerVolumeResource{}
-	_ resource.ResourceWithConfigure = &virtualServerVolumeResource{}
+	_ resource.Resource                = &virtualServerVolumeResource{}
+	_ resource.ResourceWithConfigure   = &virtualServerVolumeResource{}
+	_ resource.ResourceWithImportState = &virtualServerVolumeResource{}
 )
 
 // NewComputeVolumeResource is a helper function to simplify the provider implementation.
@@ -508,4 +510,10 @@ func diff(a []virtualserver.VolumeServer, b []virtualserver.VolumeServer) []stri
 	}
 
 	return result
+}
+
+// ImportState adopts an existing resource via `terraform import <addr> <id>` using its
+// opaque id; Read then refreshes the remaining state. (#81)
+func (r *virtualServerVolumeResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }

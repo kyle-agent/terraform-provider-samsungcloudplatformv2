@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -25,8 +26,9 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource              = &serviceWatchAlertResource{}
-	_ resource.ResourceWithConfigure = &serviceWatchAlertResource{}
+	_ resource.Resource                = &serviceWatchAlertResource{}
+	_ resource.ResourceWithConfigure   = &serviceWatchAlertResource{}
+	_ resource.ResourceWithImportState = &serviceWatchAlertResource{}
 )
 
 // NewServiceWatchAlertResource is a helper function to simplify the provider implementation.
@@ -584,4 +586,10 @@ func convertUpdateModel(model servicewatch.AlertResource) servicewatch.AlertUpda
 		ViolationCount:    model.ViolationCount,
 		MissingDataOption: model.MissingDataOption,
 	}
+}
+
+// ImportState adopts an existing resource via `terraform import <addr> <id>` using its
+// opaque id; Read then refreshes the remaining state. (#81)
+func (r *serviceWatchAlertResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }

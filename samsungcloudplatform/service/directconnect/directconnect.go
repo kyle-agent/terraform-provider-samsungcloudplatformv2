@@ -9,6 +9,7 @@ import (
 	"github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/common/tag"
 	scpsdk "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/client"
 	scpdirectconnect "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/library/direct-connect/1.0"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -20,8 +21,9 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource              = &directConnectDirectConnectResource{}
-	_ resource.ResourceWithConfigure = &directConnectDirectConnectResource{}
+	_ resource.Resource                = &directConnectDirectConnectResource{}
+	_ resource.ResourceWithConfigure   = &directConnectDirectConnectResource{}
+	_ resource.ResourceWithImportState = &directConnectDirectConnectResource{}
 )
 
 // NewDirectConnectDirectConnectResource is a helper function to simplify the provider implementation.
@@ -356,4 +358,10 @@ func waitForDirectConnectStatus(ctx context.Context, directConnectClient *direct
 		}
 		return info, string(info.DirectConnect.State), nil
 	})
+}
+
+// ImportState adopts an existing resource via `terraform import <addr> <id>` using its
+// opaque id; Read then refreshes the remaining state. (#81)
+func (r *directConnectDirectConnectResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }

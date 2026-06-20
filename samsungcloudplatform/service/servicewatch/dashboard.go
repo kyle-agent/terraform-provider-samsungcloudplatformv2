@@ -9,6 +9,7 @@ import (
 	"github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/client/servicewatch"
 	"github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/common"
 	scpsdk "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/client"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -18,8 +19,9 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource              = &serviceWatchDashboardResource{}
-	_ resource.ResourceWithConfigure = &serviceWatchDashboardResource{}
+	_ resource.Resource                = &serviceWatchDashboardResource{}
+	_ resource.ResourceWithConfigure   = &serviceWatchDashboardResource{}
+	_ resource.ResourceWithImportState = &serviceWatchDashboardResource{}
 )
 
 // NewServiceWatchDashboardResource is a helper function to simplify the provider implementation.
@@ -409,4 +411,10 @@ func (r *serviceWatchDashboardResource) Delete(ctx context.Context, req resource
 		)
 		return
 	}
+}
+
+// ImportState adopts an existing resource via `terraform import <addr> <id>` using its
+// opaque id; Read then refreshes the remaining state. (#81)
+func (r *serviceWatchDashboardResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/common/tag"
 	scpsdk "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/client"
 	scpvpn "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/library/vpn/1.1"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -20,8 +21,9 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource              = &vpnVpnGatewayResource{}
-	_ resource.ResourceWithConfigure = &vpnVpnGatewayResource{}
+	_ resource.Resource                = &vpnVpnGatewayResource{}
+	_ resource.ResourceWithConfigure   = &vpnVpnGatewayResource{}
+	_ resource.ResourceWithImportState = &vpnVpnGatewayResource{}
 )
 
 // NewVpnVpnGatewayResource is a helper function to simplify the provider implementation.
@@ -49,7 +51,7 @@ func (r *vpnVpnGatewayResource) Schema(_ context.Context, _ resource.SchemaReque
 			"id": schema.StringAttribute{
 				Description: "Identifier of the resource.\n" +
 					"  - example : b156740b6335468d8354eb9ef8eddf5a",
-				Computed:    true,
+				Computed: true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -57,32 +59,32 @@ func (r *vpnVpnGatewayResource) Schema(_ context.Context, _ resource.SchemaReque
 			common.ToSnakeCase("Description"): schema.StringAttribute{
 				Description: "Description\n" +
 					"  - example : Description for VPN Gateway",
-				Optional:    true,
+				Optional: true,
 			},
 			common.ToSnakeCase("IpAddress"): schema.StringAttribute{
 				Description: "Ip Address\n" +
 					"  - example : 123.0.0.1",
-				Required:    true,
+				Required: true,
 			},
 			common.ToSnakeCase("IpId"): schema.StringAttribute{
 				Description: "Identifier of the IP\n" +
 					"  - example : fcde872f75c145a0893d656cc698f13e",
-				Required:    true,
+				Required: true,
 			},
 			common.ToSnakeCase("IpType"): schema.StringAttribute{
 				Description: "Type of IP\n" +
 					"  - example : PUBLIC",
-				Required:    true,
+				Required: true,
 			},
 			common.ToSnakeCase("Name"): schema.StringAttribute{
 				Description: "Name\n" +
 					"  - example : ExampleVpnGW1",
-				Required:    true,
+				Required: true,
 			},
 			common.ToSnakeCase("VpcId"): schema.StringAttribute{
 				Description: "Identifier of the VPC\n" +
 					"  - example : ceb44ea5ecb34a49b16495f9a63b0718",
-				Required:    true,
+				Required: true,
 			},
 			common.ToSnakeCase("VpnGateway"): schema.SingleNestedAttribute{
 				Description: "Vpn gateway",
@@ -352,4 +354,10 @@ func waitForVpnGatewayStatus(ctx context.Context, vpnClient *vpn.Client, id stri
 		}
 		return info, string(info.VpnGateway.State), nil
 	})
+}
+
+// ImportState adopts an existing resource via `terraform import <addr> <id>` using its
+// opaque id; Read then refreshes the remaining state. (#81)
+func (r *vpnVpnGatewayResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }

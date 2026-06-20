@@ -13,6 +13,7 @@ import (
 	virtualserverutil "github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/common/virtualserver"
 	scpsdk "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/client"
 	scpvirtualserver "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/library/virtualserver/1.3"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -21,8 +22,9 @@ import (
 )
 
 var (
-	_ resource.Resource              = &virtualServerImageResource{}
-	_ resource.ResourceWithConfigure = &virtualServerImageResource{}
+	_ resource.Resource                = &virtualServerImageResource{}
+	_ resource.ResourceWithConfigure   = &virtualServerImageResource{}
+	_ resource.ResourceWithImportState = &virtualServerImageResource{}
 )
 
 func NewVirtualServerImageResource() resource.Resource {
@@ -495,4 +497,10 @@ func (r *virtualServerImageResource) Delete(ctx context.Context, req resource.De
 		)
 		return
 	}
+}
+
+// ImportState adopts an existing resource via `terraform import <addr> <id>` using its
+// opaque id; Read then refreshes the remaining state. (#81)
+func (r *virtualServerImageResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }

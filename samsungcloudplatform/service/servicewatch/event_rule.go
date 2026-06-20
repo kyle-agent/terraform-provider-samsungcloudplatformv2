@@ -9,20 +9,22 @@ import (
 	"github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/common/tag"
 	scpsdk "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/client"
 	servicewatch2 "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/library/servicewatch/1.2"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"time"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource              = &serviceWatchEventRuleResource{}
-	_ resource.ResourceWithConfigure = &serviceWatchEventRuleResource{}
+	_ resource.Resource                = &serviceWatchEventRuleResource{}
+	_ resource.ResourceWithConfigure   = &serviceWatchEventRuleResource{}
+	_ resource.ResourceWithImportState = &serviceWatchEventRuleResource{}
 )
 
 // NewServiceWatchEventRuleResource is a helper function to simplify the provider implementation.
@@ -46,11 +48,11 @@ func (r *serviceWatchEventRuleResource) Schema(_ context.Context, _ resource.Sch
 	resp.Schema = schema.Schema{
 		Description: "Event Rule Resource",
 		Attributes: map[string]schema.Attribute{
-		    "last_updated": schema.StringAttribute{
+			"last_updated": schema.StringAttribute{
 				Description: "Timestamp of the last Terraform update of the Resource Group",
 				Computed:    true,
 			},
-            common.ToSnakeCase("Id"): schema.StringAttribute{
+			common.ToSnakeCase("Id"): schema.StringAttribute{
 				Description: "Event Rule ID",
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
@@ -58,102 +60,102 @@ func (r *serviceWatchEventRuleResource) Schema(_ context.Context, _ resource.Sch
 				},
 			},
 			common.ToSnakeCase("Description"): schema.StringAttribute{
-				Optional:            true,
-				Description:         "Event rule description",
+				Optional:    true,
+				Description: "Event rule description",
 			},
 			common.ToSnakeCase("EventIds"): schema.ListAttribute{
-				ElementType:         types.StringType,
-				Optional:            true,
-				Description:         "List of Event IDs",
+				ElementType: types.StringType,
+				Optional:    true,
+				Description: "List of Event IDs",
 			},
 			common.ToSnakeCase("EventRuleId"): schema.StringAttribute{
-				Optional:            true,
-				Description:         "Event rule ID",
+				Optional:    true,
+				Description: "Event rule ID",
 			},
 			common.ToSnakeCase("Name"): schema.StringAttribute{
-				Optional:            true,
-				Description:         "Event rule name",
+				Optional:    true,
+				Description: "Event rule name",
 			},
 			common.ToSnakeCase("RecipientIds"): schema.ListAttribute{
-				ElementType:         types.StringType,
-				Optional:            true,
-				Description:         "Notification recipient IDs",
+				ElementType: types.StringType,
+				Optional:    true,
+				Description: "Notification recipient IDs",
 			},
 			common.ToSnakeCase("ResourceTypeId"): schema.StringAttribute{
-				Optional:            true,
-				Description:         "Resource type ID",
+				Optional:    true,
+				Description: "Resource type ID",
 			},
 			common.ToSnakeCase("ServiceId"): schema.StringAttribute{
-				Required:            true,
-				Description:         "Service ID",
+				Required:    true,
+				Description: "Service ID",
 			},
 			common.ToSnakeCase("SrnList"): schema.ListAttribute{
-				ElementType:         types.StringType,
-				Optional:            true,
-				Description:         "List of SDS cloud Resource Names",
+				ElementType: types.StringType,
+				Optional:    true,
+				Description: "List of SDS cloud Resource Names",
 			},
-        	common.ToSnakeCase("ActiveYn"): schema.StringAttribute{
-				Optional:            true,
-				Description:         "ActiveYn",
+			common.ToSnakeCase("ActiveYn"): schema.StringAttribute{
+				Optional:    true,
+				Description: "ActiveYn",
 				Validators: []validator.String{
-				    stringvalidator.OneOf("Y", "N"),
+					stringvalidator.OneOf("Y", "N"),
 				},
 			},
-            common.ToSnakeCase("NoneAttributes"): schema.ListAttribute{
-                ElementType:         types.StringType,
-				Optional:            true,
-				Description:         "List of attributes to assign to None",
+			common.ToSnakeCase("NoneAttributes"): schema.ListAttribute{
+				ElementType: types.StringType,
+				Optional:    true,
+				Description: "List of attributes to assign to None",
 			},
-            "tags": tag.ResourceSchema(),
+			"tags": tag.ResourceSchema(),
 			"event_rule": schema.SingleNestedAttribute{
 				Attributes: map[string]schema.Attribute{
 					"account_id": schema.StringAttribute{
-						Computed:            true,
-						Description:         "Account ID",
+						Computed:    true,
+						Description: "Account ID",
 					},
 					"active_yn": schema.StringAttribute{
-						Computed:            true,
-						Description:         "Whether the Event rule is active",
+						Computed:    true,
+						Description: "Whether the Event rule is active",
 					},
 					"created_at": schema.StringAttribute{
-						Computed:            true,
-						Description:         "Created date time",
+						Computed:    true,
+						Description: "Created date time",
 					},
 					"created_by": schema.StringAttribute{
-						Computed:            true,
-						Description:         "Creator ID",
+						Computed:    true,
+						Description: "Creator ID",
 					},
 					"description": schema.StringAttribute{
-						Computed:            true,
-						Description:         "Event rule description",
+						Computed:    true,
+						Description: "Event rule description",
 					},
 					"id": schema.StringAttribute{
-						Computed:            true,
-						Description:         "Event rule ID",
+						Computed:    true,
+						Description: "Event rule ID",
 					},
 					"modified_at": schema.StringAttribute{
-						Computed:            true,
-						Description:         "Modified date time",
+						Computed:    true,
+						Description: "Modified date time",
 					},
 					"modified_by": schema.StringAttribute{
-						Computed:            true,
-						Description:         "Modifier ID",
+						Computed:    true,
+						Description: "Modifier ID",
 					},
 					"name": schema.StringAttribute{
-						Computed:            true,
-						Description:         "Event rule name",
+						Computed:    true,
+						Description: "Event rule name",
 					},
 					"resource_type_id": schema.StringAttribute{
-						Computed:            true,
-						Description:         "Resource type ID",
+						Computed:    true,
+						Description: "Resource type ID",
 					},
 					"service_id": schema.StringAttribute{
-						Computed:            true,
-						Description:         "Service ID",
+						Computed:    true,
+						Description: "Service ID",
 					},
 				},
-				Computed:            true,
-				Description:         "Event rule",
+				Computed:    true,
+				Description: "Event rule",
 			},
 		},
 	}
@@ -331,16 +333,22 @@ func (r *serviceWatchEventRuleResource) Delete(ctx context.Context, req resource
 
 func convertEventRule(eventRuleResp *servicewatch2.EventRuleDTO) servicewatch.EventRule {
 	return servicewatch.EventRule{
-    	AccountId:           types.StringValue(eventRuleResp.AccountId),
-	    ActiveYn:            types.StringValue(string(eventRuleResp.ActiveYn)),
-	    CreatedAt:           types.StringValue(eventRuleResp.CreatedAt.Format("2006-01-02 15:04:05")),
-		CreatedBy:           types.StringValue(eventRuleResp.CreatedBy),
-	    Description:         types.StringPointerValue(eventRuleResp.Description.Get()),
-		Id:                  types.StringValue(eventRuleResp.Id),
-		ModifiedAt:          types.StringValue(eventRuleResp.ModifiedAt.Format("2006-01-02 15:04:05")),
-		ModifiedBy:          types.StringValue(eventRuleResp.ModifiedBy),
-		Name:                types.StringValue(eventRuleResp.Name),
-		ResourceTypeId:      types.StringPointerValue(eventRuleResp.ResourceTypeId.Get()),
-		ServiceId:           types.StringValue(eventRuleResp.ServiceId),
+		AccountId:      types.StringValue(eventRuleResp.AccountId),
+		ActiveYn:       types.StringValue(string(eventRuleResp.ActiveYn)),
+		CreatedAt:      types.StringValue(eventRuleResp.CreatedAt.Format("2006-01-02 15:04:05")),
+		CreatedBy:      types.StringValue(eventRuleResp.CreatedBy),
+		Description:    types.StringPointerValue(eventRuleResp.Description.Get()),
+		Id:             types.StringValue(eventRuleResp.Id),
+		ModifiedAt:     types.StringValue(eventRuleResp.ModifiedAt.Format("2006-01-02 15:04:05")),
+		ModifiedBy:     types.StringValue(eventRuleResp.ModifiedBy),
+		Name:           types.StringValue(eventRuleResp.Name),
+		ResourceTypeId: types.StringPointerValue(eventRuleResp.ResourceTypeId.Get()),
+		ServiceId:      types.StringValue(eventRuleResp.ServiceId),
 	}
+}
+
+// ImportState adopts an existing resource via `terraform import <addr> <id>` using its
+// opaque id; Read then refreshes the remaining state. (#81)
+func (r *serviceWatchEventRuleResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }

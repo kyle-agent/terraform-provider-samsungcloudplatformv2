@@ -11,6 +11,7 @@ import (
 	scpsdk "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/client"
 	scpiam1d0 "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/library/iam/1.4"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -18,8 +19,9 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource              = &iamRoleResource{}
-	_ resource.ResourceWithConfigure = &iamRoleResource{}
+	_ resource.Resource                = &iamRoleResource{}
+	_ resource.ResourceWithConfigure   = &iamRoleResource{}
+	_ resource.ResourceWithImportState = &iamRoleResource{}
 )
 
 // NewIamRoleResource is a helper function to simplify the provider implementation.
@@ -980,4 +982,10 @@ func convertPrincipal(ctx context.Context, principal interface{}) (iam.Principal
 	}
 
 	return _principal, diags
+}
+
+// ImportState adopts an existing resource via `terraform import <addr> <id>` using its
+// opaque id; Read then refreshes the remaining state. (#81)
+func (r *iamRoleResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }

@@ -16,6 +16,7 @@ import (
 	scpSearchengine "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/library/searchengine/1.0"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -25,8 +26,9 @@ import (
 )
 
 var (
-	_ resource.Resource              = &searchengineClusterResource{}
-	_ resource.ResourceWithConfigure = &searchengineClusterResource{}
+	_ resource.Resource                = &searchengineClusterResource{}
+	_ resource.ResourceWithConfigure   = &searchengineClusterResource{}
+	_ resource.ResourceWithImportState = &searchengineClusterResource{}
 )
 
 func NewSearchengineClusterResource() resource.Resource {
@@ -1015,4 +1017,10 @@ func (r *searchengineClusterResource) Delete(ctx context.Context, req resource.D
 			return
 		}
 	}
+}
+
+// ImportState adopts an existing resource via `terraform import <addr> <id>` using its
+// opaque id; Read then refreshes the remaining state. (#81)
+func (r *searchengineClusterResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
