@@ -778,6 +778,14 @@ func (r *iamUserResource) Update(ctx context.Context, req resource.UpdateRequest
 
 	resp.Diagnostics.Append(diags...)
 
+	// password_reuse_count is Optional/Computed: when the user does not manage it,
+	// the plan resolves to 0, but UpdateUser then sends 0 and the API rejects it
+	// with 400 "Input should be greater than 0". Preserve the existing value from
+	// state so a description-only (or any partial) update does not clobber it.
+	if plan.PasswordReuseCount.ValueInt32() <= 0 {
+		plan.PasswordReuseCount = state.PasswordReuseCount
+	}
+
 	_, err := r.client.UpdateUser(ctx, state.AccountId.ValueString(), state.UserId.ValueString(), plan)
 	if err != nil {
 		detail := client.GetDetailFromError(err)
