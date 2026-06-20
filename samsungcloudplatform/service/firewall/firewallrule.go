@@ -9,6 +9,7 @@ import (
 	scpsdk "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/client"
 	scpfirewall "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/library/firewall/1.0"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -20,8 +21,9 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource              = &firewallFirewallRuleResource{}
-	_ resource.ResourceWithConfigure = &firewallFirewallRuleResource{}
+	_ resource.Resource                = &firewallFirewallRuleResource{}
+	_ resource.ResourceWithConfigure   = &firewallFirewallRuleResource{}
+	_ resource.ResourceWithImportState = &firewallFirewallRuleResource{}
 )
 
 // NewFirewallFirewallRuleResource is a helper function to simplify the provider implementation.
@@ -298,6 +300,12 @@ func (r *firewallFirewallRuleResource) Create(ctx context.Context, req resource.
 	if resp.Diagnostics.HasError() {
 		return
 	}
+}
+
+// ImportState adopts an existing resource via `terraform import <addr> <id>`
+// using its opaque id; Read then refreshes the remaining state. (#81)
+func (r *firewallFirewallRuleResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
 func (r *firewallFirewallRuleResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {

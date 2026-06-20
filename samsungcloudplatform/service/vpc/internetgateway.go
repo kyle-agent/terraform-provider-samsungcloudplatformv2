@@ -9,6 +9,7 @@ import (
 	"github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/common/tag"
 	scpsdk "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/client"
 	scpvpc "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/library/vpc/1.1"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -21,8 +22,9 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource              = &vpcInternetGatewayResource{}
-	_ resource.ResourceWithConfigure = &vpcInternetGatewayResource{}
+	_ resource.Resource                = &vpcInternetGatewayResource{}
+	_ resource.ResourceWithConfigure   = &vpcInternetGatewayResource{}
+	_ resource.ResourceWithImportState = &vpcInternetGatewayResource{}
 )
 
 // NewVpcInternetGatewayResource is a helper function to simplify the provider implementation.
@@ -229,6 +231,12 @@ func (r *vpcInternetGatewayResource) Create(ctx context.Context, req resource.Cr
 }
 
 // Read refreshes the Terraform state with the latest data.
+// ImportState adopts an existing resource via `terraform import <addr> <id>`
+// using its opaque id; Read then refreshes the remaining state. (#81)
+func (r *vpcInternetGatewayResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
 func (r *vpcInternetGatewayResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Get current state
 	var state vpc.InternetGatewayResource
