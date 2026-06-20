@@ -88,6 +88,17 @@ func (r *tgwFirewallConnectionResource) Schema(_ context.Context, _ resource.Sch
 							"  - example: ['bbb93aca123f4bb2b2c0f206f4a86b2b']",
 						Computed: true,
 					},
+					// The SDK model TransitGateway.AttributeTypes() carries BOTH
+					// firewall_ids and firewall_id; this nested object is built from
+					// that model via ObjectValueFrom, so every model attribute must be
+					// declared here or State.Set fails with a Value Conversion Error
+					// ("Expected framework type from provider logic"). firewall_id was
+					// missing -> create/apply panicked once the waiter reached ACTIVE.
+					common.ToSnakeCase("FirewallId"): schema.StringAttribute{
+						Description: "Firewall ID\n" +
+							"  - example: bbb93aca123f4bb2b2c0f206f4a86b2b",
+						Computed: true,
+					},
 					common.ToSnakeCase("Id"): schema.StringAttribute{
 						Description: "Transit Gateway ID\n" +
 							"  - example: fe860e0af0c04dcd8182b84f907f31f4",
