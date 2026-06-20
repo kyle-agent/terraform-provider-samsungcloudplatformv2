@@ -238,7 +238,11 @@ func (r *vpcVpcEndpointResource) Create(ctx context.Context, req resource.Create
 		SubnetId:     types.StringValue(vpcendpoint.SubnetId),
 		SubnetName:   types.StringValue(vpcendpoint.SubnetName),
 		ResourceType: types.StringValue(string(vpcendpoint.ResourceType)),
-		ResourceKey:  types.StringValue(vpcendpoint.AccountId),
+		// #94: map the actual resource_key the API returns (the 1.1 show model
+		// echoes a distinct resource_key field), NOT account_id. Using AccountId
+		// here corrupted state (resource_key != account_id) and caused a spurious
+		// diff/replace on every re-plan.
+		ResourceKey:  types.StringValue(vpcendpoint.ResourceKey),
 		ResourceInfo: types.StringValue(vpcendpoint.ResourceInfo),
 		AccountId:    types.StringValue(vpcendpoint.AccountId),
 		State:        types.StringValue(string(vpcendpoint.State)),
@@ -305,7 +309,9 @@ func (r *vpcVpcEndpointResource) Read(ctx context.Context, req resource.ReadRequ
 		SubnetId:     types.StringValue(vpcendpoint.SubnetId),
 		SubnetName:   types.StringValue(vpcendpoint.SubnetName),
 		ResourceType: types.StringValue(string(vpcendpoint.ResourceType)),
-		ResourceKey:  types.StringValue(vpcendpoint.AccountId),
+		// #94: map the real resource_key (not account_id) so refresh/update do not
+		// corrupt state or force a spurious diff.
+		ResourceKey:  types.StringValue(vpcendpoint.ResourceKey),
 		ResourceInfo: types.StringValue(vpcendpoint.ResourceInfo),
 		AccountId:    types.StringValue(vpcendpoint.AccountId),
 		State:        types.StringValue(string(vpcendpoint.State)),
@@ -368,7 +374,9 @@ func (r *vpcVpcEndpointResource) Update(ctx context.Context, req resource.Update
 		SubnetId:     types.StringValue(vpcendpoint.SubnetId),
 		SubnetName:   types.StringValue(vpcendpoint.SubnetName),
 		ResourceType: types.StringValue(string(vpcendpoint.ResourceType)),
-		ResourceKey:  types.StringValue(vpcendpoint.AccountId),
+		// #94: map the real resource_key (not account_id) so refresh/update do not
+		// corrupt state or force a spurious diff.
+		ResourceKey:  types.StringValue(vpcendpoint.ResourceKey),
 		ResourceInfo: types.StringValue(vpcendpoint.ResourceInfo),
 		AccountId:    types.StringValue(vpcendpoint.AccountId),
 		State:        types.StringValue(string(vpcendpoint.State)),
