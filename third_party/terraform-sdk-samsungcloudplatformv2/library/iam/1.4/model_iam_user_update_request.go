@@ -23,7 +23,7 @@ var _ MappedNullable = &IAMUserUpdateRequest{}
 type IAMUserUpdateRequest struct {
 	Description NullableString `json:"description,omitempty"`
 	// Password Reuse Count
-	PasswordReuseCount int32 `json:"password_reuse_count"`
+	PasswordReuseCount *int32 `json:"password_reuse_count,omitempty"`
 }
 
 type _IAMUserUpdateRequest IAMUserUpdateRequest
@@ -34,7 +34,7 @@ type _IAMUserUpdateRequest IAMUserUpdateRequest
 // will change when the set of required properties is changed
 func NewIAMUserUpdateRequest(passwordReuseCount int32) *IAMUserUpdateRequest {
 	this := IAMUserUpdateRequest{}
-	this.PasswordReuseCount = passwordReuseCount
+	this.PasswordReuseCount = &passwordReuseCount
 	return &this
 }
 
@@ -91,26 +91,26 @@ func (o *IAMUserUpdateRequest) UnsetDescription() {
 
 // GetPasswordReuseCount returns the PasswordReuseCount field value
 func (o *IAMUserUpdateRequest) GetPasswordReuseCount() int32 {
-	if o == nil {
+	if o == nil || o.PasswordReuseCount == nil {
 		var ret int32
 		return ret
 	}
 
-	return o.PasswordReuseCount
+	return *o.PasswordReuseCount
 }
 
 // GetPasswordReuseCountOk returns a tuple with the PasswordReuseCount field value
 // and a boolean to check if the value has been set.
 func (o *IAMUserUpdateRequest) GetPasswordReuseCountOk() (*int32, bool) {
-	if o == nil {
+	if o == nil || o.PasswordReuseCount == nil {
 		return nil, false
 	}
-	return &o.PasswordReuseCount, true
+	return o.PasswordReuseCount, true
 }
 
 // SetPasswordReuseCount sets field value
 func (o *IAMUserUpdateRequest) SetPasswordReuseCount(v int32) {
-	o.PasswordReuseCount = v
+	o.PasswordReuseCount = &v
 }
 
 func (o IAMUserUpdateRequest) MarshalJSON() ([]byte, error) {
@@ -126,7 +126,9 @@ func (o IAMUserUpdateRequest) ToMap() (map[string]interface{}, error) {
 	if o.Description.IsSet() {
 		toSerialize["description"] = o.Description.Get()
 	}
-	toSerialize["password_reuse_count"] = o.PasswordReuseCount
+	if o.PasswordReuseCount != nil {
+		toSerialize["password_reuse_count"] = o.PasswordReuseCount
+	}
 	return toSerialize, nil
 }
 
@@ -134,9 +136,7 @@ func (o *IAMUserUpdateRequest) UnmarshalJSON(data []byte) (err error) {
 	// This validates that all required properties are included in the JSON object
 	// by unmarshalling the object into a generic map with string keys and checking
 	// that every required field exists as a key in the generic map.
-	requiredProperties := []string{
-		"password_reuse_count",
-	}
+	requiredProperties := []string{}
 
 	allProperties := make(map[string]interface{})
 

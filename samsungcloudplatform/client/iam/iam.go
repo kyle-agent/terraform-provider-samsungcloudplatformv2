@@ -905,10 +905,17 @@ func (client *Client) CreateUser(ctx context.Context, request UserResource) (*sc
 func (client *Client) UpdateUser(ctx context.Context, accountId string, userId string, request UserResource) (*scpsdkiam.UserResponse, error) {
 	req := client.sdkClient.IamV1AccountsApiAPI.UpdateIAMUser(ctx, accountId, userId)
 
-	req = req.IAMUserUpdateRequest(scpsdkiam.IAMUserUpdateRequest{
-		Description:        *scpsdkiam.NewNullableString(request.Description.ValueStringPointer()),
-		PasswordReuseCount: request.PasswordReuseCount.ValueInt32(),
-	})
+	update := scpsdkiam.IAMUserUpdateRequest{
+		Description: *scpsdkiam.NewNullableString(request.Description.ValueStringPointer()),
+	}
+	// password_reuse_count is Optional/Computed: only send it when the user manages a
+	// positive value. The SDK field is now *int32 with omitempty, so leaving it nil omits
+	// it and the API keeps the existing value (was: plain int32 -> always 0 -> 400 "Input
+	// should be greater than 0" on a description-only update).
+	if v := request.PasswordReuseCount.ValueInt32(); v > 0 {
+		update.PasswordReuseCount = &v
+	}
+	req = req.IAMUserUpdateRequest(update)
 	resp, _, err := req.Execute()
 	return resp, err
 }
