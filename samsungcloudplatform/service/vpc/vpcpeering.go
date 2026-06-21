@@ -11,6 +11,7 @@ import (
 	"github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/common"
 	"github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/common/tag"
 	scpsdk "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/client"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -21,8 +22,9 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource              = &vpcPeeringResource{}
-	_ resource.ResourceWithConfigure = &vpcPeeringResource{}
+	_ resource.Resource                = &vpcPeeringResource{}
+	_ resource.ResourceWithConfigure   = &vpcPeeringResource{}
+	_ resource.ResourceWithImportState = &vpcPeeringResource{}
 )
 
 // NewVpcVpcPeeringResource is a helper function to simplify the provider implementation.
@@ -468,4 +470,10 @@ func stringFromNullable(value *string) types.String {
 		return types.StringNull()
 	}
 	return types.StringValue(*value)
+}
+
+// ImportState adopts an existing resource via `terraform import <addr> <id>` using its
+// opaque id; Read then refreshes the remaining state. (#81)
+func (r *vpcPeeringResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/common/tag"
 	scpsdk "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/client"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -25,8 +26,9 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource              = &vpcSubnetResource{}
-	_ resource.ResourceWithConfigure = &vpcSubnetResource{}
+	_ resource.Resource                = &vpcSubnetResource{}
+	_ resource.ResourceWithConfigure   = &vpcSubnetResource{}
+	_ resource.ResourceWithImportState = &vpcSubnetResource{}
 )
 
 // NewVpcSubnetResource is a helper function to simplify the provider implementation.
@@ -277,6 +279,12 @@ func (r *vpcSubnetResource) Create(ctx context.Context, req resource.CreateReque
 }
 
 // Read refreshes the Terraform state with the latest data.
+// ImportState adopts an existing resource via `terraform import <addr> <id>`
+// using its opaque id; Read then refreshes the remaining state. (#81)
+func (r *vpcSubnetResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
 func (r *vpcSubnetResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Get current state
 	var state vpc.SubnetResource

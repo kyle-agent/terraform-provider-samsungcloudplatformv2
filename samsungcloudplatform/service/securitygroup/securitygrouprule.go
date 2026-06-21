@@ -8,6 +8,7 @@ import (
 	"github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/common"
 	scpsdk "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/client"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -19,8 +20,9 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource              = &securityGroupRuleResource{}
-	_ resource.ResourceWithConfigure = &securityGroupRuleResource{}
+	_ resource.Resource                = &securityGroupRuleResource{}
+	_ resource.ResourceWithConfigure   = &securityGroupRuleResource{}
+	_ resource.ResourceWithImportState = &securityGroupRuleResource{}
 )
 
 // NewSecurityGroupResource is a helper function to simplify the provider implementation.
@@ -37,9 +39,9 @@ type securityGroupRuleResource struct {
 
 func (r *securityGroupRuleResource) Update(ctx context.Context, request resource.UpdateRequest, response *resource.UpdateResponse) {
 	response.Diagnostics.AddError(
-        "Update not supported",
-        "This resource does not support in-place updates.",
-    )
+		"Update not supported",
+		"This resource does not support in-place updates.",
+	)
 }
 
 // Metadata returns the data source type name.
@@ -253,6 +255,12 @@ func (r *securityGroupRuleResource) Create(ctx context.Context, req resource.Cre
 	if resp.Diagnostics.HasError() {
 		return
 	}
+}
+
+// ImportState adopts an existing resource via `terraform import <addr> <id>`
+// using its opaque id; Read then refreshes the remaining state. (#81)
+func (r *securityGroupRuleResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
 func (r *securityGroupRuleResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {

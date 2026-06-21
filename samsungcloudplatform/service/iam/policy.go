@@ -21,8 +21,9 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource              = &iamPolicyResource{}
-	_ resource.ResourceWithConfigure = &iamPolicyResource{}
+	_ resource.Resource                = &iamPolicyResource{}
+	_ resource.ResourceWithConfigure   = &iamPolicyResource{}
+	_ resource.ResourceWithImportState = &iamPolicyResource{}
 )
 
 // NewIamPolicyResource is a helper function to simplify the provider implementation.
@@ -835,4 +836,10 @@ func convertCondition(ctx context.Context, rawCondition map[string]map[string][]
 	}
 
 	return conditionMap, diags
+}
+
+// ImportState adopts an existing resource via `terraform import <addr> <id>` using its
+// opaque id; Read then refreshes the remaining state. (#81)
+func (r *iamPolicyResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }

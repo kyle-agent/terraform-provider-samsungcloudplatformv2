@@ -8,6 +8,7 @@ import (
 	"github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/common"
 	scpsdk "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/client"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -19,8 +20,9 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource              = &iamAccessKeyResource{}
-	_ resource.ResourceWithConfigure = &iamAccessKeyResource{}
+	_ resource.Resource                = &iamAccessKeyResource{}
+	_ resource.ResourceWithConfigure   = &iamAccessKeyResource{}
+	_ resource.ResourceWithImportState = &iamAccessKeyResource{}
 )
 
 // NewIamAccessKeyResource is a helper function to simplify the provider implementation.
@@ -384,4 +386,10 @@ func (r *iamAccessKeyResource) Delete(ctx context.Context, req resource.DeleteRe
 		)
 		return
 	}
+}
+
+// ImportState adopts an existing resource via `terraform import <addr> <id>` using its
+// opaque id; Read then refreshes the remaining state. (#81)
+func (r *iamAccessKeyResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }

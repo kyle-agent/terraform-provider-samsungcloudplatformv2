@@ -10,6 +10,7 @@ import (
 	"github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/common/tag"
 	scpsdk "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/client"
 	scpsdkiam "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/library/iam/1.4"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -19,8 +20,9 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource              = &iamGroupResource{}
-	_ resource.ResourceWithConfigure = &iamGroupResource{}
+	_ resource.Resource                = &iamGroupResource{}
+	_ resource.ResourceWithConfigure   = &iamGroupResource{}
+	_ resource.ResourceWithImportState = &iamGroupResource{}
 )
 
 // NewIamGroupResource is a helper function to simplify the provider implementation.
@@ -855,4 +857,10 @@ func _getPolicies(ctx context.Context, _policies []scpsdkiam.Policy, policies []
 		policies = append(policies, policyState)
 	}
 	return policies
+}
+
+// ImportState adopts an existing resource via `terraform import <addr> <id>` using its
+// opaque id; Read then refreshes the remaining state. (#81)
+func (r *iamGroupResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }

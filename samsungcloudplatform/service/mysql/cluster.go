@@ -16,6 +16,7 @@ import (
 	scpMysql "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/library/mysql/1.1"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -25,8 +26,9 @@ import (
 )
 
 var (
-	_ resource.Resource              = &mysqlClusterResource{}
-	_ resource.ResourceWithConfigure = &mysqlClusterResource{}
+	_ resource.Resource                = &mysqlClusterResource{}
+	_ resource.ResourceWithConfigure   = &mysqlClusterResource{}
+	_ resource.ResourceWithImportState = &mysqlClusterResource{}
 )
 
 func NewMysqlClusterResource() resource.Resource {
@@ -1023,4 +1025,10 @@ func (r *mysqlClusterResource) Delete(ctx context.Context, req resource.DeleteRe
 			return
 		}
 	}
+}
+
+// ImportState adopts an existing resource via `terraform import <addr> <id>` using its
+// opaque id; Read then refreshes the remaining state. (#81)
+func (r *mysqlClusterResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }

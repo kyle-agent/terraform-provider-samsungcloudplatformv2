@@ -11,6 +11,7 @@ import (
 	scpsdk "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/client"
 	scpvpc "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/library/vpc/1.1"
 	scpvpcV1Dot2 "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/library/vpc/1.2"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -22,8 +23,9 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource              = &vpcPublicipResource{}
-	_ resource.ResourceWithConfigure = &vpcPublicipResource{}
+	_ resource.Resource                = &vpcPublicipResource{}
+	_ resource.ResourceWithConfigure   = &vpcPublicipResource{}
+	_ resource.ResourceWithImportState = &vpcPublicipResource{}
 )
 
 // NewVpcPublicipResource is a helper function to simplify the provider implementation.
@@ -190,6 +192,12 @@ func (r *vpcPublicipResource) Create(ctx context.Context, req resource.CreateReq
 }
 
 // Read refreshes the Terraform state with the latest data.
+// ImportState adopts an existing resource via `terraform import <addr> <id>`
+// using its opaque id; Read then refreshes the remaining state. (#81)
+func (r *vpcPublicipResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
 func (r *vpcPublicipResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Get current state
 	var state vpc.PublicipResource

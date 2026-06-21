@@ -9,6 +9,7 @@ import (
 	virtualserverutil "github.com/SamsungSDSCloud/terraform-provider-samsungcloudplatformv2/v3/samsungcloudplatform/common/virtualserver"
 	scpsdk "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/client"
 	scploadbalancer "github.com/SamsungSDSCloud/terraform-sdk-samsungcloudplatformv2/v3/library/loadbalancer/1.3"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -20,8 +21,9 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource              = &loadbalancerLoadbalancerResource{}
-	_ resource.ResourceWithConfigure = &loadbalancerLoadbalancerResource{}
+	_ resource.Resource                = &loadbalancerLoadbalancerResource{}
+	_ resource.ResourceWithConfigure   = &loadbalancerLoadbalancerResource{}
+	_ resource.ResourceWithImportState = &loadbalancerLoadbalancerResource{}
 )
 
 // NewLoadBalancerLoadBalancerResource is a helper function to simplify the provider implementation.
@@ -414,4 +416,10 @@ func showLoadbalancerModel(data *scploadbalancer.LoadbalancerShowResponse) loadb
 		SubnetId:         types.StringValue(data.Loadbalancer.SubnetId),
 		VpcId:            types.StringValue(data.Loadbalancer.VpcId),
 	}
+}
+
+// ImportState adopts an existing resource via `terraform import <addr> <id>` using its
+// opaque id; Read then refreshes the remaining state. (#81)
+func (r *loadbalancerLoadbalancerResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
